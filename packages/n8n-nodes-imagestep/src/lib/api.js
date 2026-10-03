@@ -12,7 +12,7 @@
  */
 
 const { createHash, randomUUID } = require("node:crypto");
-const { NodeApiError, NodeOperationError } = require("n8n-workflow");
+const { NodeApiError, NodeOperationError, sleep } = require("n8n-workflow");
 
 const CREDENTIAL = "imageStepApi";
 const USER_AGENT = "n8n-nodes-imagestep/0.1.0";
@@ -27,10 +27,6 @@ const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 const RETRY = { retries: 2, baseMs: 500, maxWaitMs: 60_000 };
 /** Failures below HTTP — no answer at all — that a second attempt can get past. */
 const TRANSIENT = new Set(["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "UND_ERR_SOCKET"]);
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 /** Whether a failed call is worth a second attempt: the contract's `retryable`, or no HTTP answer at all. */
 function worthRetrying(error) {

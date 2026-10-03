@@ -80,3 +80,28 @@ describe("build output", () => {
     expect(Object.keys(entry).sort()).toEqual(["ImageStep", "ImageStepApi", "ImageStepTrigger"]);
   });
 });
+
+/**
+ * What n8n's own scanner (`@n8n/scan-community-package`, run before a node is verified) refused in 0.1.0 (imagestep#602):
+ * a package.json without an author name and email, and a timer global in the node's code — the lint rule
+ * `@n8n/community-nodes/no-restricted-globals` wants n8n-workflow's `sleep` instead. Held here so neither comes back.
+ */
+describe("n8n's community package scan", () => {
+  it("names an author with a name and an email", () => {
+    expect(pkg.author?.name).toBeTruthy();
+    expect(pkg.author?.email).toMatch(/^[^@\s]+@[^@\s]+$/);
+  });
+
+  it("uses no timer global in the node's code (n8n-workflow's sleep instead)", () => {
+    const hits = walk(join(root, "src"))
+      .filter((file) => file.endsWith(".js"))
+      .flatMap((file) =>
+        readFileSync(file, "utf8")
+          .split("\n")
+          .map((line, i) => [line, i + 1])
+          .filter(([line]) => /\b(setTimeout|setInterval|setImmediate|clearTimeout|clearInterval|clearImmediate)\s*\(/.test(line))
+          .map(([, n]) => `${file.slice(root.length + 1)}:${n}`)
+      );
+    expect(hits).toEqual([]);
+  });
+});

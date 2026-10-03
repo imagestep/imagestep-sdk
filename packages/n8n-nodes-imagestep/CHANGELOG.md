@@ -4,7 +4,14 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
-## 0.1.0 — Unreleased
+## 0.1.1 — Unreleased
+
+### Fixed
+
+- Passes n8n's community package scan: `package.json` names an author with an email, and the node waits with
+  n8n-workflow's `sleep` helper instead of the `setTimeout` global.
+
+## 0.1.0 — 2026-10-03
 
 First release of the [ImageStep](https://imagestep.dev) community node for [n8n](https://n8n.io).
 
