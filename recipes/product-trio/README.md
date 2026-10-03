@@ -48,4 +48,4 @@ the folder: within a minute the sheet has three rows for it, one per variant, wi
 ## What it costs
 
 `remove_bg` is the only AI op here — one charge per image, shown by the dry run. `pad` and
-`resize` are deterministic and free on paid plans. Three variants of one photo = one AI charge.
+`resize` are deterministic ops — free on paid plans; on Free they count against the monthly allowance, and past it each one is paid from the balance. Three variants of one photo = one AI charge.

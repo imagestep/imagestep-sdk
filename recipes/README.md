@@ -22,13 +22,17 @@ copy it, change it, ship it.
 
 ## Quick start
 
-You need Node 20+ and an ImageStep API key ([console](https://imagestep.dev/keys?utm_source=github&utm_medium=recipes)
-→ API keys).
+You need Node 20+, pnpm and an ImageStep API key ([console](https://imagestep.dev/keys?utm_source=github&utm_medium=recipes)
+→ API keys). The recipes live in this repository's `recipes/` folder and run on the JavaScript SDK next to them:
 
 ```sh
-pnpm install
+git clone https://github.com/imagestep/imagestep-sdk.git
+cd imagestep-sdk/recipes
+pnpm install          # on Node 20, pnpm warns that the CLI in the same workspace wants 22.19+; the recipes do not
 export IMAGESTEP_API_KEY=is_sk_…
 ```
+
+To use one recipe in a project of your own, copy its folder and `pnpm add imagestep`.
 
 Every recipe that calls a model takes `--dry-run`: it prices the job, prints the estimate and stops. Run that first.
 The inputs in [`examples/`](examples/) are enough to run all five from zero.
@@ -39,7 +43,7 @@ pnpm carousel --refs examples/hero.jpg --describe "a woman in her thirties with 
 pnpm scenes --refs examples/product.jpg --describe "a dark green enamel camping mug with a white rim" \
   --scenes product-scenes/scenes.example.txt --dry-run
 pnpm trio examples/product.jpg --dry-run
-pnpm cards --rows templated-cards/rows.example.csv     # no model: nothing to price in credits
+pnpm cards --rows templated-cards/rows.example.csv     # no model step: deterministic ops only
 pnpm ingest examples/field                               # no model either
 ```
 
@@ -56,8 +60,9 @@ another API host.
 
 ## What it costs
 
-Deterministic ops (`resize`, `pad`, `convert`, `render_template`, reading metadata) cost no credits on paid plans and
-count against the deterministic quota on Free; uploading, filing and publishing are free. AI ops (`generate`,
+Deterministic ops (`resize`, `pad`, `convert`, `render_template`) are free on paid plans; on Free they count against the
+monthly allowance, and past it each one is paid from the balance. Reading metadata, uploading, filing and publishing are
+free. AI ops (`generate`,
 `remove_bg`) charge per image at a published USD price. The figure that matters is the one your dry run prints, never
 this README.
 

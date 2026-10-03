@@ -45,5 +45,5 @@ Save the template once with the script above. Then import `n8n-template.json`:
 
 ## What it costs
 
-No credits: `render_template` and `convert` are deterministic — free on paid plans, counted against the deterministic
-quota on Free (each row is one render and one convert).
+No model step: `render_template` and `convert` are deterministic ops — free on paid plans; on Free they count against the monthly allowance, and past it each one is paid from the balance (each
+row is one render and one convert). The dry run prints what is left of the allowance.

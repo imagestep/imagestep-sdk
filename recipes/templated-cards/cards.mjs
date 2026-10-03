@@ -39,7 +39,8 @@ const template = await upsertTemplate({
 const pinned = `${template.id}@${template.version}`;
 console.log(`template ${template.slug} v${template.version} → ${rows.length} rows`);
 
-// 2. Price it: a render item counts against the deterministic quota on Free, and costs no credits.
+// 2. Price it: a render is a deterministic op — free on paid plans, counted against Free's monthly allowance and paid
+//    from the balance past it.
 const estimate = await client.ops.run("render_template", { templateId: pinned, items: rows, dryRun: true });
 console.log(
   `dry run: ${estimate.totalItems} renders, ${estimate.estimatedCredits ?? 0} credits (deterministic ops left: ${estimate.processCountLeft})`

@@ -63,5 +63,4 @@ Save the preset once with the script above. Then import `n8n-template.json`:
 
 ## What it costs
 
-`generate` is an AI op: one charge per scene, shown by the dry run. The sizes are a deterministic job — free on paid
-plans, counted against the deterministic quota on Free.
+`generate` is an AI op: one charge per scene, shown by the dry run. The sizes are a deterministic job — free on paid plans; on Free they count against the monthly allowance, and past it each one is paid from the balance.

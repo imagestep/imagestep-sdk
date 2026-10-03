@@ -29,7 +29,9 @@ console.log(`uploaded ${basename(file)} → ${source.id} (${source.image?.width}
 
 // 2. Price the one AI op before spending anything.
 const estimate = await client.ops.removeBg(source.id, { dryRun: true });
-console.log(`dry run: remove_bg ${estimate.estimatedCredits} credits · pad and resize are free (balance ${estimate.creditBalance})`);
+console.log(
+  `dry run: remove_bg ${estimate.estimatedCredits} credits · pad and resize are deterministic ops, priced by plan (balance ${estimate.creditBalance})`
+);
 if (dryRun) process.exit(0);
 
 // 3. Three jobs, side by side. Every output is a new asset; the upload is never touched.

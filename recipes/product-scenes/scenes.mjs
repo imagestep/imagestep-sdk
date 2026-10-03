@@ -56,7 +56,7 @@ console.log(`preset ${pinned} (${model}), ${scenes.length} scenes × ${sizes.len
 // 2. Price the whole run first: the model call per scene; the sizes are a deterministic job.
 const estimate = await client.presets.run(pinned, [], { prompt: promptFor(scenes[0]), dryRun: true });
 console.log(
-  `dry run: ${estimate.estimatedCredits} credits per scene × ${scenes.length} (balance ${estimate.creditBalance}); the sizes cost no credits`
+  `dry run: ${estimate.estimatedCredits} credits per scene × ${scenes.length} (balance ${estimate.creditBalance}); the sizes are deterministic ops, priced by plan`
 );
 if (args["dry-run"]) process.exit(0);
 
