@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { properties } = require("../src/nodes/ImageStep/description.js");
+const { properties } = require("../nodes/ImageStep/description.js");
 const { NODE_TYPE, checkTemplate } = require("./template-check.js");
 
 const DIR = join(import.meta.dirname, "..", "templates");

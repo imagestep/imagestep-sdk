@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
  */
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const require = createRequire(import.meta.url);
-const { properties: N8N_PROPERTIES } = require("../../packages/n8n-nodes-imagestep/src/nodes/ImageStep/description.js");
+const { properties: N8N_PROPERTIES } = require("../../packages/n8n-nodes-imagestep/nodes/ImageStep/description.js");
 const { checkTemplate } = require("../../packages/n8n-nodes-imagestep/test/template-check.js");
 
 /** A recipe is a top-level folder with an n8n template in it. */

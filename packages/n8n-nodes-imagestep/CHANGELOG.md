@@ -4,7 +4,14 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
-## 0.1.1 — Unreleased
+## 0.1.2 — Unreleased
+
+### Changed
+
+- The sources moved from `src/` to the package root (`nodes/`, `credentials/`, `lib/`), where n8n's Creator Portal and
+  its scanner look for them in the source repository. The built package (`dist/`) is unchanged.
+
+## 0.1.1 — 2026-10-03
 
 ### Fixed
 

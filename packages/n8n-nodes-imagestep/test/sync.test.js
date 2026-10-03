@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ITEM_CONCURRENCY, ImageStep } from "../src/nodes/ImageStep/ImageStep.node.js";
+import { ITEM_CONCURRENCY, ImageStep } from "../nodes/ImageStep/ImageStep.node.js";
 import { fakeContext } from "./fake-context.js";
 
 /**

@@ -27,7 +27,12 @@ export default [
   { files: ["sdk/**", "packages/**"], languageOptions: { globals: { ...NODE, ...globals.browser } } },
   // The n8n node is CommonJS: n8n loads the files its manifest names with require.
   {
-    files: ["packages/n8n-nodes-imagestep/src/**", "packages/n8n-nodes-imagestep/index.js"],
+    files: [
+      "packages/n8n-nodes-imagestep/nodes/**",
+      "packages/n8n-nodes-imagestep/credentials/**",
+      "packages/n8n-nodes-imagestep/lib/**",
+      "packages/n8n-nodes-imagestep/index.js"
+    ],
     languageOptions: { sourceType: "commonjs", globals: NODE }
   }
 ];

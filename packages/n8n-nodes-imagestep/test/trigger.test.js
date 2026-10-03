@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { fakeContext, fail, ok, signBody } from "./fake-context.js";
 
 const require = createRequire(import.meta.url);
-const { ImageStepTrigger } = require("../src/nodes/ImageStepTrigger/ImageStepTrigger.node.js");
+const { ImageStepTrigger } = require("../nodes/ImageStepTrigger/ImageStepTrigger.node.js");
 
 const secret = "whsec_test";
 const event = { id: "evt_1", type: "job.completed", createdAt: "2026-09-08T07:11:00Z", data: { jobId: "job_1", status: "COMPLETED" } };

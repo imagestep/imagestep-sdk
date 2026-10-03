@@ -3,9 +3,9 @@ import { createRequire } from "node:module";
 import { signBody } from "./fake-context.js";
 
 const require = createRequire(import.meta.url);
-const { assetRef, jobRef, buildOpJobBody, buildPresetJobBody, normaliseIds, parseParameters } = require("../src/lib/refs.js");
-const { toOpOptions, PROMPT_OPS } = require("../src/lib/ops.js");
-const { verifySignature, parseSignatureHeader } = require("../src/lib/signature.js");
+const { assetRef, jobRef, buildOpJobBody, buildPresetJobBody, normaliseIds, parseParameters } = require("../lib/refs.js");
+const { toOpOptions, PROMPT_OPS } = require("../lib/ops.js");
+const { verifySignature, parseSignatureHeader } = require("../lib/signature.js");
 
 describe("job body builders (docs/api-contract.md §8)", () => {
   it("builds an op request with only the fields that were given", () => {

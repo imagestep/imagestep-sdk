@@ -43,7 +43,7 @@ describe("package manifest (n8n verification guidelines)", () => {
 
   it("source requires only Node built-ins, n8n-workflow and relative files", () => {
     const allowed = new Set(["n8n-workflow"]);
-    for (const file of walk(join(root, "src")).filter((f) => f.endsWith(".js"))) {
+    for (const file of ["nodes", "credentials", "lib"].flatMap((dir) => walk(join(root, dir))).filter((f) => f.endsWith(".js"))) {
       const text = readFileSync(file, "utf8");
       for (const m of text.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)) {
         const spec = m[1];
@@ -93,7 +93,8 @@ describe("n8n's community package scan", () => {
   });
 
   it("uses no timer global in the node's code (n8n-workflow's sleep instead)", () => {
-    const hits = walk(join(root, "src"))
+    const hits = ["nodes", "credentials", "lib"]
+      .flatMap((dir) => walk(join(root, dir)))
       .filter((file) => file.endsWith(".js"))
       .flatMap((file) =>
         readFileSync(file, "utf8")
@@ -103,5 +104,21 @@ describe("n8n's community package scan", () => {
           .map(([, n]) => `${file.slice(root.length + 1)}:${n}`)
       );
     expect(hits).toEqual([]);
+  });
+});
+
+/**
+ * imagestep#602 — n8n's Creator Portal checks the source repo, not the tarball: 0.1.1 failed its automatic vetting with
+ * "Can't find credential file in repo" while the sources sat under `src/`. It looks where the n8n starter puts them —
+ * `credentials/` and `nodes/` at the package root, the same paths the `n8n` manifest names under `dist/`.
+ */
+describe("sources where n8n's Creator Portal looks for them", () => {
+  it.each([...pkg.n8n.credentials, ...pkg.n8n.nodes])("%s is built from the same path at the package root", (built) => {
+    expect(built.startsWith("dist/")).toBe(true);
+    expect(existsSync(join(root, built.slice("dist/".length))), built).toBe(true);
+  });
+
+  it("keeps no src/ directory", () => {
+    expect(existsSync(join(root, "src"))).toBe(false);
   });
 });

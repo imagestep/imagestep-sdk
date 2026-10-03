@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 // Every HTTP call a test makes goes through this context, so this is where retries are told to wait milliseconds, not
 // the real 0.5 s / 1 s backoff (#521). `retries` stays as shipped: /docs/n8n quotes it.
-Object.assign(createRequire(import.meta.url)("../src/lib/api.js").RETRY, { baseMs: 1, maxWaitMs: 5 });
+Object.assign(createRequire(import.meta.url)("../lib/api.js").RETRY, { baseMs: 1, maxWaitMs: 5 });
 
 /**
  * A stand-in for n8n's function context (`this` inside execute / hooks / webhook): a route table
