@@ -1,21 +1,18 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { properties as N8N_PROPERTIES } from "../../packages/n8n-nodes-imagestep/nodes/ImageStep/description.ts";
 
 /**
  * What can be checked about the recipes without calling the API (imagestep#458 / #650).
  *
  * The recipes are the copy of the API that readers run as-is, so they drift the moment the API moves and nothing here
  * runs them. Running them needs a live service (`pnpm test:e2e:recipes` in the upstream repo); these checks need only
- * the files, so they run with every unit test: no spelling of an API the recipes no longer run against, every n8n
- * template sets only fields the ImageStep node shows, and every recipe folder is complete and listed.
+ * the files, so they run with every unit test: no spelling of an API the recipes no longer run against, and every
+ * recipe folder is complete and listed. That every n8n template sets only fields the ImageStep node shows is checked
+ * upstream too, where the node's source is (imagestep#602 moved the node to a repository of its own).
  */
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
-const require = createRequire(import.meta.url);
-const { checkTemplate } = require("../../packages/n8n-nodes-imagestep/test/template-check.js");
 
 /** A recipe is a top-level folder with an n8n template in it. */
 const RECIPES = readdirSync(ROOT)
@@ -59,11 +56,6 @@ describe("recipes", () => {
       for (const re of STALE) if (re.test(text)) hits.push(`${relative(ROOT, file)}: ${re}`);
     }
     expect(hits).toEqual([]);
-  });
-
-  it.each(RECIPES)("%s: its n8n template sets only fields the ImageStep node shows", (dir) => {
-    const template = JSON.parse(readFileSync(join(ROOT, dir, "n8n-template.json"), "utf8"));
-    expect(checkTemplate(template, N8N_PROPERTIES)).toEqual([]);
   });
 
   it.each(RECIPES)("%s: has a README, a script that package.json runs, and a row in the root README", (dir) => {

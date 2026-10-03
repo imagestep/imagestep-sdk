@@ -1,6 +1,6 @@
 name: Publish
 
-# The four npm packages and the Python SDK, from a tag. A `v*` tag publishes every package whose version in the tagged
+# The three npm packages and the Python SDK, from a tag. A `v*` tag publishes every package whose version in the tagged
 # tree is not on its registry yet and skips the rest, so the packages keep their own version numbers: bump one, tag, and
 # only that one goes out. A version that is already published is never an error; a published number cannot be reused.
 #
@@ -52,14 +52,12 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # By path: the four packages that publish to npm.
-      - name: Test the four packages
-        run: pnpm --filter ./sdk/js --filter ./packages/mcp --filter ./apps/cli --filter ./packages/n8n-nodes-imagestep test
-      # `pnpm pack` runs prepack but not prepublishOnly, which is where the two builds live.
+      # By path: the three packages that publish to npm.
+      - name: Test the three packages
+        run: pnpm --filter ./sdk/js --filter ./packages/mcp --filter ./apps/cli test
+      # `pnpm pack` runs prepack but not prepublishOnly, which is where the SDK's build lives.
       - name: Build
-        run: |
-          pnpm --filter ./sdk/js run build
-          pnpm --filter ./packages/n8n-nodes-imagestep run build
+        run: pnpm --filter ./sdk/js run build
       # `order.txt` is the publish order, one tarball per line.
       - name: Pack what is not on npm yet
         id: pack
@@ -68,7 +66,7 @@ jobs:
           out="$RUNNER_TEMP/npm"
           mkdir -p "$out"
           : > "$out/order.txt"
-          for dir in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
+          for dir in sdk/js packages/mcp apps/cli; do
             name="$(node -p "require('./$dir/package.json').name")"
             version="$(node -p "require('./$dir/package.json').version")"
             if [ -n "$(pnpm view "$name@$version" version 2>/dev/null || true)" ]; then

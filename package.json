@@ -1,7 +1,7 @@
 {
   "name": "imagestep-sdk-workspace",
   "private": true,
-  "description": "ImageStep's clients: the JavaScript and Python SDKs, the CLI, the MCP server, the n8n node and the recipes.",
+  "description": "ImageStep's clients: the JavaScript and Python SDKs, the CLI, the MCP server, the agent skill and the recipes.",
   "license": "MIT",
   "packageManager": "pnpm@10.34.5",
   "engines": {

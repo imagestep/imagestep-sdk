@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in an SDK, the CLI, the MCP server, the n8n node, a recipe or an API answer is wrong.
+description: Something in an SDK, the CLI, the MCP server, a recipe or an API answer is wrong.
 labels: ["bug"]
 body:
   - type: dropdown
@@ -11,7 +11,6 @@ body:
         - imagestep (Python SDK)
         - imagestep-cli
         - "@imagestep/mcp"
-        - n8n-nodes-imagestep
         - recipes
         - The API itself
     validations:

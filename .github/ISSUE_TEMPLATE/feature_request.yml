@@ -1,5 +1,5 @@
 name: Feature request
-description: Something you needed and could not do with the SDKs, the CLI, the MCP server, the n8n node or the API.
+description: Something you needed and could not do with the SDKs, the CLI, the MCP server or the API.
 labels: ["enhancement"]
 body:
   - type: textarea

@@ -11,9 +11,11 @@ Everything that runs on your side of the API lives here:
 | [`sdk/python`](sdk/python) | [`imagestep`](https://pypi.org/project/imagestep/) on PyPI | Python SDK for Python 3.10+, with a sync and an async client |
 | [`apps/cli`](apps/cli) | [`imagestep-cli`](https://www.npmjs.com/package/imagestep-cli) on npm | The command-line client, binary `imagestep` |
 | [`packages/mcp`](packages/mcp) | [`@imagestep/mcp`](https://www.npmjs.com/package/@imagestep/mcp) on npm | MCP server: presets, assets and jobs as tools for agents. Also hosted at `https://mcp.imagestep.dev/mcp` |
-| [`packages/n8n-nodes-imagestep`](packages/n8n-nodes-imagestep) | [`n8n-nodes-imagestep`](https://www.npmjs.com/package/n8n-nodes-imagestep) on npm | n8n community node and trigger |
 | [`skills/imagestep`](skills/imagestep) | — | Agent skill for Claude Code, Codex or Cursor: `npx skills add imagestep/imagestep-sdk` |
 | [`recipes`](recipes) | — | Complete pipelines to copy: a JS SDK script, an n8n template and a README each |
+
+The n8n community node and trigger, [`n8n-nodes-imagestep`](https://www.npmjs.com/package/n8n-nodes-imagestep), have
+a repository of their own: [imagestep/n8n-nodes-imagestep](https://github.com/imagestep/n8n-nodes-imagestep).
 
 Each directory has its own README. The documentation is at [imagestep.dev/docs](https://imagestep.dev/docs), and the
 API reference at [imagestep.dev/docs/api](https://imagestep.dev/docs/api).

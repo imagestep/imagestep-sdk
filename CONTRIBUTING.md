@@ -12,8 +12,10 @@ and exported here as snapshots. So:
 - **Pull requests** are welcome. We do not merge them here: we apply the change in the main repository, credit you
   with a `Co-authored-by` line, and it arrives here with the next export, at which point we close your pull request
   with a link to it.
-- Some generated files (the SDKs' API types, the n8n node's fallback list of ops) are written from the API's
-  OpenAPI document upstream; please describe a change to them rather than editing them.
+- Some generated files (the SDKs' API types) are written from the API's OpenAPI document upstream; please describe a
+  change to them rather than editing them.
+- The n8n node is exported to a repository of its own,
+  [imagestep/n8n-nodes-imagestep](https://github.com/imagestep/n8n-nodes-imagestep); its issues go there.
 
 ## English only
 

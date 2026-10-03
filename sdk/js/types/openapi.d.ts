@@ -7111,7 +7111,7 @@ export interface operations {
              *     - `invalid_param` on `steps[i].op` — an op that answers with JSON (`analyze`) anywhere but last: nothing after it has an image
              *     - `invalid_param` on `steps[i].op` — an op that takes no input image (`generate`) in a preset of more than one segment
              *     - `invalid_param` on `steps[i].parameters.<name>` — a parameter outside the op's contract
-             *     - `invalid_param` on `steps[i].parameters.<name>` — `frame` / `metadata` / `density` given two values in one pass, or `frame=all` where the pass writes a still format
+             *     - `invalid_param` on `steps[i].parameters.<name>` — `frame` / `metadata` / `density` given two values in one pass, or `frame=all` where the pass writes a still format or has a step that draws on the finished picture — a mask, a region blur, a watermark or a caption
              *     - `invalid_param` on `steps[i].model` — a model no provider runs or one that does not run the step's op; on a deterministic step, any model (`steps[i].prompt` likewise)
              *     - `invalid_param` on `steps[i].operation` — an unknown registry operation; `steps[i].params…` — arguments it refuses
              *     - `invalid_param` on `subjects` — see CONSISTENCY above: too many subjects or images, an image that is not your own `DONE` asset, a bad or repeated name, a long descriptor, or no generate / edit step to send them with

@@ -36,7 +36,7 @@ jobs:
         run: pnpm test:python
       - name: Every package packs
         run: |
-          for pkg in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
+          for pkg in sdk/js packages/mcp apps/cli; do
             (cd "$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/packs")
           done
           (cd sdk/python && uv build --build-constraints build-constraints.txt --require-hashes --out-dir "$RUNNER_TEMP/packs")

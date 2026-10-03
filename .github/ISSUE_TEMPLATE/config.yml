@@ -3,6 +3,9 @@ contact_links:
   - name: Report a vulnerability
     url: https://github.com/imagestep/imagestep-sdk/blob/main/SECURITY.md
     about: Please report security issues privately, by email, not in a public issue.
+  - name: The n8n node
+    url: https://github.com/imagestep/n8n-nodes-imagestep/issues
+    about: The n8n community node and trigger have a repository of their own.
   - name: Account, plan or billing
     url: https://imagestep.dev/support
     about: Questions about your account, your plan or an invoice.

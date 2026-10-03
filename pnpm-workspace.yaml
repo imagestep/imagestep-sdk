@@ -3,7 +3,7 @@ packages:
   - "sdk/js"
   # The command-line client.
   - "apps/cli"
-  # The MCP server and the n8n community node.
+  # The MCP server.
   - "packages/*"
   # Complete pipelines to copy: a JS SDK script, an n8n template and a README each.
   - "recipes"
