@@ -4,7 +4,17 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
-## 0.1.2 — Unreleased
+## 0.1.3 — 2026-10-03
+
+### Changed
+
+- The node is written in TypeScript, in the layout of n8n's node starter: `credentials/ImageStepApi.credentials.ts`,
+  `nodes/ImageStep/ImageStep.node.ts` and `nodes/ImageStepTrigger/ImageStepTrigger.node.ts`, compiled by `tsc` with
+  `strict` on. n8n's Creator Portal asks for TypeScript sources before it verifies a node. The built package is the
+  same: `dist/` keeps its paths, the nodes and the credential keep their names, fields and defaults, and there are
+  still no runtime dependencies.
+
+## 0.1.2 — 2026-10-03
 
 ### Changed
 

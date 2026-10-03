@@ -1,4 +1,4 @@
-"use strict";
+import type { IDataObject } from "n8n-workflow";
 
 /**
  * Asset-by-reference output shapes — the same `assetRef` / `jobRef` the MCP server returns
@@ -6,14 +6,89 @@
  * never a data URL: an output is an id, its dimensions and a public URL.
  */
 
-function pick(object, keys) {
-  return Object.fromEntries(keys.filter((key) => object[key] !== undefined && object[key] !== null).map((key) => [key, object[key]]));
+/** The measured facts of an image: under `image` on a full record, flat on a list row (imagestep#339). */
+interface ImageFacts {
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  size?: number;
 }
 
-function assetRef(a) {
+/** An asset document as the API returns it — the fields this package reads. */
+export interface Asset extends ImageFacts {
+  id: string;
+  name?: string;
+  status?: string;
+  image?: ImageFacts | null;
+  collection?: string | null;
+  tags?: string[] | null;
+  publicUrl?: string | null;
+  expiresAt?: string | number | null;
+  metadata?: IDataObject | null;
+}
+
+/** One item of a job document. */
+export interface JobItem {
+  status?: string;
+  sourceAssetId?: string;
+  resultAssetId?: string | null;
+  error?: string;
+  errorMessage?: string;
+  errorCode?: string;
+  retryable?: boolean;
+  step?: number;
+  failedStep?: number;
+  provider?: string;
+  model?: string;
+  durationMs?: number;
+  credits?: number;
+  startedAt?: string;
+  finishedAt?: string;
+  output?: IDataObject;
+}
+
+/** A job document as the API returns it — the fields this package reads. */
+export interface Job {
+  id: string;
+  type?: string;
+  status: string;
+  op?: string;
+  presetId?: string;
+  presetVersion?: number;
+  templateId?: string;
+  templateVersion?: number;
+  totalItems?: number;
+  completedItems?: number;
+  failedItems?: number;
+  creditsCharged?: number;
+  actualCredits?: number;
+  expiresAt?: string;
+  items?: JobItem[];
+  itemsTruncated?: boolean;
+}
+
+/** The body of `POST /api/v1/jobs`. */
+export interface JobBody extends IDataObject {
+  assetIds?: string[];
+  imageCount?: number;
+  prompt?: string;
+  count?: number;
+  collection?: string;
+  retentionDays?: number;
+}
+
+function pick<T extends object>(object: T, keys: Array<keyof T>): Partial<T> {
+  return Object.fromEntries(
+    keys.filter((key) => object[key] !== undefined && object[key] !== null).map((key) => [key, object[key]])
+  ) as Partial<T>;
+}
+
+export function assetRef(a: Asset): IDataObject;
+export function assetRef(a: Asset | null | undefined): IDataObject | null;
+export function assetRef(a: Asset | null | undefined): IDataObject | null {
   if (!a) return null;
   // A list row carries the measured facts flat (imagestep#339); a full record under `image`.
-  const info = { ...(a.image || {}), ...pick(a, ["mimeType", "width", "height", "size"]) };
+  const info: ImageFacts = { ...(a.image || {}), ...pick(a, ["mimeType", "width", "height", "size"]) };
   return {
     assetId: a.id,
     name: a.name,
@@ -37,7 +112,7 @@ function assetRef(a) {
  * what, how long it took and what it cost. A workflow that branches on a failure can read
  * `items[n].retryable` and `items[n].provider` out of the node output instead of opening a console.
  */
-function jobRef(job, outputs) {
+export function jobRef(job: Job, outputs?: Asset[]): IDataObject {
   const items = (job.items || []).map((i) => ({
     status: i.status,
     sourceAssetId: i.sourceAssetId,
@@ -73,7 +148,7 @@ function jobRef(job, outputs) {
     items,
     // The job document inlines its first 100 items (imagestep#440); `outputs` is every output all the same (#522).
     itemsTruncated: job.itemsTruncated || undefined,
-    outputs: outputs ? outputs.map(assetRef) : undefined
+    outputs: outputs ? outputs.map((o) => assetRef(o)) : undefined
   };
 }
 
@@ -82,9 +157,29 @@ function jobRef(job, outputs) {
  * inputs are left out so the service applies its own defaults and `invalid_param` names only what
  * the caller actually sent.
  */
-function buildOpJobBody({ op, assetIds, imageCount, prompt, count, model, parameters, collection, retentionDays }) {
+export function buildOpJobBody({
+  op,
+  assetIds,
+  imageCount,
+  prompt,
+  count,
+  model,
+  parameters,
+  collection,
+  retentionDays
+}: {
+  op: string;
+  assetIds?: unknown;
+  imageCount?: number;
+  prompt?: string;
+  count?: number | string | null;
+  model?: string;
+  parameters?: IDataObject;
+  collection?: string;
+  retentionDays?: number | string;
+}): JobBody {
   if (!op) throw new TypeError("op is required");
-  const body = { op };
+  const body: JobBody = { op };
   const ids = normaliseIds(assetIds);
   if (ids.length) body.assetIds = ids;
   // A Dry Run's images that were not uploaded to be priced (imagestep#586).
@@ -110,11 +205,31 @@ function buildOpJobBody({ op, assetIds, imageCount, prompt, count, model, parame
  * preset carries its own scene while the subjects stay fixed (imagestep#460). `fromPrompt` is the Input = None case — a
  * preset whose first step is `generate` takes no image (#373); whether this preset is one is the service's to say.
  */
-function buildPresetJobBody({ presetId, assetIds, imageCount, version, collection, retentionDays, prompt, count, fromPrompt }) {
+export function buildPresetJobBody({
+  presetId,
+  assetIds,
+  imageCount,
+  version,
+  collection,
+  retentionDays,
+  prompt,
+  count,
+  fromPrompt
+}: {
+  presetId: string;
+  assetIds?: unknown;
+  imageCount?: number;
+  version?: number | string;
+  collection?: string;
+  retentionDays?: number | string;
+  prompt?: string;
+  count?: number | string;
+  fromPrompt?: boolean;
+}): JobBody {
   if (!presetId) throw new TypeError("presetId is required");
   const ids = normaliseIds(assetIds);
   if (!ids.length && !imageCount && !fromPrompt) throw new TypeError("at least one asset id is required");
-  const body = { presetId: pinVersion(presetId, version), assetIds: ids };
+  const body: JobBody = { presetId: pinVersion(presetId, version), assetIds: ids };
   if (imageCount) body.imageCount = imageCount;
   if (prompt) body.prompt = prompt;
   if (Number(count) >= 1) body.count = Number(count);
@@ -124,29 +239,27 @@ function buildPresetJobBody({ presetId, assetIds, imageCount, version, collectio
 }
 
 /** `ref` at `version`, or as given when no version was asked for (or one is already on it). */
-function pinVersion(ref, version) {
+function pinVersion(ref: string, version: number | string | undefined): string {
   const wanted = Number(version);
   if (!Number.isInteger(wanted) || wanted < 1 || String(ref).includes("@")) return ref;
   return `${ref}@${wanted}`;
 }
 
 /** Accepts an array, a comma / newline separated string, or nothing. */
-function normaliseIds(assetIds) {
+export function normaliseIds(assetIds: unknown): string[] {
   if (!assetIds) return [];
-  const list = Array.isArray(assetIds) ? assetIds : String(assetIds).split(/[\s,]+/);
+  const list: unknown[] = Array.isArray(assetIds) ? assetIds : String(assetIds).split(/[\s,]+/);
   return list.map((s) => String(s).trim()).filter(Boolean);
 }
 
 /** `parameters` arrives from n8n as a JSON string (type "json") or already as an object. */
-function parseParameters(value) {
+export function parseParameters(value: unknown): IDataObject | undefined {
   if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value === "object") return value;
+  if (typeof value === "object") return value as IDataObject;
   try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" ? parsed : undefined;
+    const parsed: unknown = JSON.parse(String(value));
+    return parsed && typeof parsed === "object" ? (parsed as IDataObject) : undefined;
   } catch (cause) {
     throw new TypeError("Parameters must be a JSON object", { cause });
   }
 }
-
-module.exports = { assetRef, jobRef, buildOpJobBody, buildPresetJobBody, normaliseIds, parseParameters };

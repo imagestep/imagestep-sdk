@@ -1,19 +1,18 @@
-"use strict";
+import type { IDisplayOptions, INodeProperties, INodePropertyOptions, NodeParameterValue } from "n8n-workflow";
+import { PROMPT_OPS, STATIC_OPS, toOpOptions } from "../../lib/ops";
 
 /**
  * The ImageStep node's parameter surface: one node, `resource` × `operation` dropdowns, the n8n
  * convention. Kept apart from the runtime so the tests can walk it without instantiating n8n.
  */
-const { PROMPT_OPS, STATIC_OPS, toOpOptions } = require("../../lib/ops");
-
-const RESOURCES = [
+export const RESOURCES: INodePropertyOptions[] = [
   { name: "Asset", value: "asset", description: "Upload, look up, list or publish images" },
   { name: "Operation", value: "op", description: "Run one atomic operation — remove_bg, upscale, resize, generate …" },
   { name: "Preset", value: "preset", description: "Run a saved pipeline (a versioned chain of operations)" },
   { name: "Job", value: "job", description: "Read or wait for a job and collect its outputs" }
 ];
 
-const OPERATIONS = {
+export const OPERATIONS: Record<string, INodePropertyOptions[]> = {
   asset: [
     { name: "Upload", value: "upload", action: "Upload an asset", description: "Upload a binary file from the input item" },
     {
@@ -50,16 +49,23 @@ const OPERATIONS = {
   ]
 };
 
-function show(resource, operation, extra) {
-  const cond = { resource: [].concat(resource) };
-  if (operation) cond.operation = [].concat(operation);
+type Shown = string | string[];
+type Conditions = Record<string, NodeParameterValue[]>;
+
+function show(resource: Shown, operation?: Shown, extra?: Conditions): { displayOptions: IDisplayOptions } {
+  const cond: Conditions = { resource: ([] as string[]).concat(resource) };
+  if (operation) cond.operation = ([] as string[]).concat(operation);
   return { displayOptions: { show: { ...cond, ...(extra || {}) } } };
 }
 
 // ── Shared field builders (a name may repeat with disjoint displayOptions — the n8n idiom) ──
 
-function inputModeFields(resource, operation, { allowNone, noneDescription = "No input image (generate)" } = {}) {
-  const options = [
+function inputModeFields(
+  resource: Shown,
+  operation: Shown,
+  { allowNone, noneDescription = "No input image (generate)" }: { allowNone?: boolean; noneDescription?: string } = {}
+): INodeProperties[] {
+  const options: INodePropertyOptions[] = [
     { name: "Binary File", value: "binary", description: "Upload the binary property of the input item first" },
     { name: "Asset IDs", value: "assetIds", description: "Existing ImageStep asset IDs" }
   ];
@@ -100,13 +106,13 @@ function inputModeFields(resource, operation, { allowNone, noneDescription = "No
  * What Store Result means on each resource. An op can hand the image straight back; a preset always runs as a job and
  * always keeps its outputs, so there the switch decides only whether they are published or downloaded (#564).
  */
-const STORE_RESULT = {
+const STORE_RESULT: Record<"op" | "preset", string> = {
   op: "Whether to keep the result in your ImageStep account. Off (default): the image is transformed while you wait and handed straight back as binary — nothing is stored and nothing is published. On: it runs as a job, so you get an asset ID, a permanent URL, progress and webhooks. AI operations and multiple images always run as a job: with this off, that job is waited for and nothing is published — its outputs come back as asset IDs; turn it on to choose Wait, Publish and Download.",
   preset:
     "A preset always runs as a job and keeps its outputs as assets. Off (default): the job is waited for and nothing is published — the outputs come back as asset IDs. On: choose whether to wait, and whether to publish and download the outputs."
 };
 
-function jobControlFields(resource, operation) {
+function jobControlFields(resource: "op" | "preset", operation: Shown): INodeProperties[] {
   return [
     {
       displayName: "Dry Run",
@@ -114,7 +120,7 @@ function jobControlFields(resource, operation) {
       type: "boolean",
       default: false,
       description:
-        "Whether to only price the job — nothing is created, uploaded or charged; the output is the estimate. A Binary File is priced as one image without being uploaded: the price depends on the op, model and parameters, never on the pixels",
+        "Whether to only price the job — nothing is created, uploaded or charged; the output is the estimate. A Binary File is priced as one image without being uploaded: the price depends on the op, model and parameters, never on the pixels.",
       ...show(resource, operation)
     },
     {
@@ -147,7 +153,7 @@ function jobControlFields(resource, operation) {
   ];
 }
 
-function outputFields(resource, operation, extra) {
+function outputFields(resource: Shown, operation: Shown, extra?: Conditions): INodeProperties[] {
   return [
     {
       displayName: "Publish Outputs",
@@ -173,7 +179,7 @@ function outputFields(resource, operation, extra) {
  * imagestep#591 — how long to keep what this node stores: an automation that posts its outputs at once need not keep them
  * the plan's full retention, which is what filled the asset ceiling. Shorter only; 0 is the plan's.
  */
-function retentionOption(what) {
+function retentionOption(what: string): INodeProperties {
   return {
     displayName: "Retention Days",
     name: "retentionDays",
@@ -184,7 +190,7 @@ function retentionOption(what) {
   };
 }
 
-function collectionOption() {
+function collectionOption(): INodeProperties {
   return {
     displayName: "Collection",
     name: "collection",
@@ -194,7 +200,7 @@ function collectionOption() {
   };
 }
 
-const properties = [
+export const properties: INodeProperties[] = [
   {
     displayName: "Resource",
     name: "resource",
@@ -203,15 +209,43 @@ const properties = [
     options: RESOURCES,
     default: "op"
   },
-  ...Object.entries(OPERATIONS).map(([resource, options]) => ({
+  // One Operation dropdown per resource, written out: n8n's linter reads a parameter's default only from a literal.
+  {
     displayName: "Operation",
     name: "operation",
     type: "options",
     noDataExpression: true,
-    options,
-    default: options[0].value,
-    displayOptions: { show: { resource: [resource] } }
-  })),
+    options: OPERATIONS.asset,
+    default: "upload",
+    displayOptions: { show: { resource: ["asset"] } }
+  },
+  {
+    displayName: "Operation",
+    name: "operation",
+    type: "options",
+    noDataExpression: true,
+    options: OPERATIONS.op,
+    default: "run",
+    displayOptions: { show: { resource: ["op"] } }
+  },
+  {
+    displayName: "Operation",
+    name: "operation",
+    type: "options",
+    noDataExpression: true,
+    options: OPERATIONS.preset,
+    default: "run",
+    displayOptions: { show: { resource: ["preset"] } }
+  },
+  {
+    displayName: "Operation",
+    name: "operation",
+    type: "options",
+    noDataExpression: true,
+    options: OPERATIONS.job,
+    default: "get",
+    displayOptions: { show: { resource: ["job"] } }
+  },
 
   // ── Asset ──
   {
@@ -364,14 +398,15 @@ const properties = [
 
   // ── Operation ──
   {
-    displayName: "Op",
+    displayName: "Op Name or ID",
     name: "op",
     type: "options",
     typeOptions: { loadOptionsMethod: "getOps" },
     options: toOpOptions(STATIC_OPS),
     default: "remove_bg",
     required: true,
-    description: "The atomic operation to run. Choose from the list, or specify an ID using an expression.",
+    description:
+      'The atomic operation to run. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
     ...show("op", "run")
   },
   ...inputModeFields("op", "run", { allowNone: true }),
@@ -419,13 +454,14 @@ const properties = [
 
   // ── Preset ──
   {
-    displayName: "Preset",
+    displayName: "Preset Name or ID",
     name: "preset",
     type: "options",
     typeOptions: { loadOptionsMethod: "getPresets" },
     default: "",
     required: true,
-    description: "A built-in preset or one saved in the console. Choose from the list, or specify an ID using an expression.",
+    description:
+      'A built-in preset or one saved in the console. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
     ...show("preset", "run")
   },
   {
@@ -451,7 +487,7 @@ const properties = [
     typeOptions: { rows: 3 },
     default: "",
     description:
-      "Replaces the prompt on the preset's one AI step — the scene for this item. Write {{subject.<name>}} to use a subject's saved words instead of describing it again (in an expression, build the text in a Code node first: n8n reads {{ }} as its own). Empty runs the prompt saved on the preset; a preset with several steps or no AI step refuses one.",
+      "Replaces the prompt on the preset's one AI step — the scene for this item. Write {{subject.&lt;name&gt;}} to use a subject's saved words instead of describing it again (in an expression, build the text in a Code node first: n8n reads {{ }} as its own). Empty runs the prompt saved on the preset; a preset with several steps or no AI step refuses one.",
     ...show("preset", "run")
   },
   {
@@ -493,5 +529,3 @@ const properties = [
   },
   ...outputFields("job", ["get", "wait"])
 ];
-
-module.exports = { RESOURCES, OPERATIONS, properties };

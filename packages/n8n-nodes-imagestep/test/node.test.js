@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
+import * as api from "../lib/api.ts";
+import { ImageStep } from "../nodes/ImageStep/ImageStep.node.ts";
 import { fakeContext, fail, ok } from "./fake-context.js";
-
-const require = createRequire(import.meta.url);
-const api = require("../lib/api.js");
-const { ImageStep } = require("../nodes/ImageStep/ImageStep.node.js");
 
 const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 const sha1 = createHash("sha1").update(png).digest("hex");

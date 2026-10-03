@@ -1,5 +1,3 @@
-"use strict";
-
 /**
  * The one HTTP layer of the package. Every call goes through n8n's own helpers
  * (`httpRequestWithAuthentication` for the API, `httpRequest` for storage PUTs and CDN GETs) —
@@ -11,10 +9,62 @@
  * Functions take the n8n context (`this` of execute / loadOptions / hook / webhook) as `ctx`.
  */
 
-const { createHash, randomUUID } = require("node:crypto");
-const { NodeApiError, NodeOperationError, sleep } = require("n8n-workflow");
+import { createHash, randomUUID } from "node:crypto";
+import { NodeApiError, NodeOperationError, sleep } from "n8n-workflow";
+import type {
+  IDataObject,
+  IExecuteFunctions,
+  IHookFunctions,
+  IHttpRequestMethods,
+  IHttpRequestOptions,
+  ILoadOptionsFunctions,
+  IWebhookFunctions,
+  JsonObject
+} from "n8n-workflow";
+import type { OpEntry } from "./ops";
+import type { Asset, Job, JobBody } from "./refs";
 
-const CREDENTIAL = "imageStepApi";
+/** Every n8n context this layer is called from: a node's execute, a dropdown's loadOptions, a trigger's hooks and webhook. */
+export type Context = IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions | IWebhookFunctions;
+
+/** A failure as this layer throws it: n8n's error plus the contract's fields a retry and a workflow branch on. */
+export type Failure = Error & {
+  code?: string;
+  retryable?: boolean;
+  retryAfter?: number | null;
+  param?: string | null;
+  requestId?: string | null;
+  httpCode?: string | null;
+  timedOut?: boolean;
+  job?: Job;
+  itemIndex?: number;
+  cause?: unknown;
+};
+
+/**
+ * What a failed item throws to n8n: the errors this package makes (NodeApiError, NodeOperationError) as they are, and
+ * anything else — a parameter that does not parse, a connection that never answered — as a NodeOperationError for that
+ * item, keeping the `code` and `retryable` a Continue On Fail row reports. n8n shows its own two error types with the
+ * node and the item they came from.
+ */
+export function asNodeError(ctx: Context, error: unknown, itemIndex?: number): Failure {
+  if (error instanceof NodeApiError || error instanceof NodeOperationError) return error as Failure;
+  const raw = (error ?? {}) as Failure;
+  const wrapped: Failure = new NodeOperationError(ctx.getNode(), error instanceof Error ? error : String(error), { itemIndex });
+  if (raw.code !== undefined) wrapped.code = raw.code;
+  if (typeof raw.retryable === "boolean") wrapped.retryable = raw.retryable;
+  return wrapped;
+}
+
+/** A listing's `meta` (contract §4). */
+export interface PageMeta {
+  page?: number;
+  total?: number;
+  hasMore?: boolean;
+  nextCursor?: string | null;
+}
+
+export const CREDENTIAL = "imageStepApi";
 const USER_AGENT = "n8n-nodes-imagestep/0.1.0";
 const DEFAULT_BASE_URL = "https://api.imagestep.dev";
 const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
@@ -24,25 +74,26 @@ const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
  * otherwise 0.5 s, 1 s (+ up to half again of jitter, so the items of one run do not come back in step). Mutable only
  * so a test does not sleep.
  */
-const RETRY = { retries: 2, baseMs: 500, maxWaitMs: 60_000 };
+export const RETRY = { retries: 2, baseMs: 500, maxWaitMs: 60_000 };
 /** Failures below HTTP — no answer at all — that a second attempt can get past. */
 const TRANSIENT = new Set(["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT", "EPIPE", "EAI_AGAIN", "UND_ERR_SOCKET"]);
 
 /** Whether a failed call is worth a second attempt: the contract's `retryable`, or no HTTP answer at all. */
-function worthRetrying(error) {
+function worthRetrying(error: Failure | undefined): boolean {
   if (typeof error?.retryable === "boolean") return error.retryable;
-  for (let e = error, depth = 0; e && depth < 4; e = e.cause, depth++) if (TRANSIENT.has(e.code)) return true;
+  for (let e = error, depth = 0; e && depth < 4; e = e.cause as Failure | undefined, depth++)
+    if (TRANSIENT.has(String(e.code))) return true;
   return false;
 }
 
-function retryDelay(attempt, retryAfter) {
+function retryDelay(attempt: number, retryAfter: number | null | undefined): number {
   if (retryAfter != null) return Math.min(retryAfter * 1000, RETRY.maxWaitMs);
   const base = RETRY.baseMs * 2 ** (attempt - 1);
   return base + Math.floor((Math.random() * base) / 2);
 }
 
 /** `send` once, and again on a failure {@link worthRetrying} — the caller's request is unchanged, key included. */
-async function withRetries(send) {
+async function withRetries<T>(send: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await send();
@@ -61,7 +112,7 @@ async function withRetries(send) {
  * execution is a new key: running the workflow again is asking for the work again. Outside an execution (a trigger's
  * lifecycle hooks) there is nothing to derive it from and a key is random, as before.
  */
-function idempotencyKey(ctx, method, path, body, itemIndex) {
+export function idempotencyKey(ctx: Context, method: string, path: string, body: unknown, itemIndex: number | undefined): string {
   const execution = typeof ctx.getExecutionId === "function" ? ctx.getExecutionId() : undefined;
   if (!execution || itemIndex === undefined || itemIndex === null) return randomUUID();
   const instance = typeof ctx.getInstanceId === "function" ? ctx.getInstanceId() : "";
@@ -74,7 +125,7 @@ function idempotencyKey(ctx, method, path, body, itemIndex) {
   return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
 }
 
-async function baseUrl(ctx) {
+async function baseUrl(ctx: Context): Promise<string> {
   const creds = await ctx.getCredentials(CREDENTIAL);
   return String(creds?.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
@@ -82,17 +133,20 @@ async function baseUrl(ctx) {
 /**
  * One API call. Resolves `{ data, meta, replayed }`; throws NodeApiError on any non-2xx that is left after
  * {@link withRetries}.
- * @param {object} ctx n8n function context
- * @param {"GET"|"POST"|"PUT"|"DELETE"} method
- * @param {string} path `/api/v1/...`
- * @param {{ body?: any, qs?: object, idempotencyKey?: string, itemIndex?: number, timeoutMs?: number }} [opts]
- *   `itemIndex` — the input item this write is for, which the key is derived from ({@link idempotencyKey})
+ * @param ctx n8n function context
+ * @param path `/api/v1/...`
+ * @param opts `itemIndex` — the input item this write is for, which the key is derived from ({@link idempotencyKey})
  */
-async function apiRequest(ctx, method, path, opts = {}) {
+async function apiRequest<T = unknown>(
+  ctx: Context,
+  method: IHttpRequestMethods,
+  path: string,
+  opts: { body?: IHttpRequestOptions["body"]; qs?: IDataObject; idempotencyKey?: string; itemIndex?: number; timeoutMs?: number } = {}
+): Promise<{ data: T; meta?: PageMeta; replayed: boolean }> {
   const isWrite = method !== "GET" && method !== "HEAD";
-  const headers = { Accept: "application/json", "User-Agent": USER_AGENT };
+  const headers: IDataObject = { Accept: "application/json", "User-Agent": USER_AGENT };
   if (isWrite) headers["Idempotency-Key"] = opts.idempotencyKey || idempotencyKey(ctx, method, path, opts.body, opts.itemIndex);
-  const request = {
+  const request: IHttpRequestOptions = {
     method,
     url: `${await baseUrl(ctx)}${path}`,
     headers,
@@ -108,10 +162,10 @@ async function apiRequest(ctx, method, path, opts = {}) {
     const status = Number(res.statusCode);
     const json = parseBody(res.body);
     if (status >= 200 && status < 300) {
-      const enveloped = json && typeof json === "object" && ("success" in json || "data" in json || "error" in json);
+      const enveloped = !!json && typeof json === "object" && ("success" in json || "data" in json || "error" in json);
       return {
-        data: status === 204 ? null : enveloped ? json.data : json,
-        meta: enveloped ? json.meta : undefined,
+        data: (status === 204 ? null : enveloped ? json.data : json) as T,
+        meta: enveloped ? (json.meta as PageMeta | undefined) : undefined,
         replayed: String(header(res.headers, "idempotency-replayed")) === "true"
       };
     }
@@ -128,10 +182,13 @@ async function apiRequest(ctx, method, path, opts = {}) {
  * survives the response, so there is no outcome to replay. It retries like every other call: every retryable answer
  * on this lane carries `Retry-After`, and the body is a Buffer already in hand (contract §9 — who carries the retry).
  *
- * @returns {Promise<{ buffer: Buffer, mimeType: string }>}
  */
-async function apiRequestBinary(ctx, path, { qs, body, contentType }) {
-  const request = {
+export async function apiRequestBinary(
+  ctx: Context,
+  path: string,
+  { qs, body, contentType }: { qs?: IDataObject; body: Buffer | string; contentType?: string }
+): Promise<{ buffer?: Buffer; json?: unknown; mimeType: string }> {
+  const request: IHttpRequestOptions = {
     method: "POST",
     url: `${await baseUrl(ctx)}${path}`,
     headers: { Accept: "*/*", "User-Agent": USER_AGENT, ...(contentType ? { "Content-Type": contentType } : {}) },
@@ -157,21 +214,21 @@ async function apiRequestBinary(ctx, path, { qs, body, contentType }) {
 }
 
 /** Which ops the API says may run synchronously — the catalogue {@link listOps} reads. Read, never hard-coded. */
-async function syncEndpoints(ctx) {
+export async function syncEndpoints(ctx: Context): Promise<Record<string, string | null>> {
   return Object.fromEntries((await listOps(ctx)).map((o) => [o.op, o.syncEndpoint || null]));
 }
 
-function parseBody(body) {
+function parseBody(body: unknown): IDataObject | null {
   if (body === undefined || body === null || body === "") return null;
-  if (typeof body !== "string") return body;
+  if (typeof body !== "string") return body as IDataObject;
   try {
-    return JSON.parse(body);
+    return JSON.parse(body) as IDataObject;
   } catch {
     return { message: body.slice(0, 200) };
   }
 }
 
-function header(headers, name) {
+function header(headers: IDataObject | undefined, name: string): unknown {
   if (!headers) return undefined;
   const key = Object.keys(headers).find((k) => k.toLowerCase() === name);
   return key ? headers[key] : undefined;
@@ -184,31 +241,39 @@ function header(headers, name) {
  * §11: quote it when reporting a failure) comes from the envelope, or from `X-Request-Id` when the
  * body is not one — the same rule as both SDKs and the MCP server (#277).
  */
-function toNodeApiError(ctx, status, json, where, headers) {
-  const e = (json && json.error) || {};
-  const requestId = e.requestId ?? header(headers, "x-request-id") ?? null;
+function toNodeApiError(ctx: Context, status: number, json: IDataObject | null, where: string, headers: IDataObject | undefined): Failure {
+  const e = ((json && json.error) || {}) as {
+    code?: string;
+    message?: string;
+    retryable?: boolean;
+    param?: string;
+    details?: IDataObject;
+    requestId?: string;
+  };
+  const requestId = (e.requestId ?? header(headers, "x-request-id") ?? null) as string | null;
   const code = e.code || (status >= 500 ? "internal_error" : "unknown_error");
   const retryable = e.retryable ?? status >= 500;
-  const messageText = e.message || json?.message || `HTTP ${status}`;
+  const messageText = e.message || (json?.message as string | undefined) || `HTTP ${status}`;
   const message = `ImageStep ${code}${e.param ? ` (param: ${e.param})` : ""}: ${messageText}`;
   const description = `${where} → ${status}. retryable=${retryable}${e.details ? `; details=${JSON.stringify(e.details)}` : ""}${requestId ? `; requestId=${requestId}` : ""}`;
   const error = new NodeApiError(
     ctx.getNode(),
-    { code, message: messageText, retryable, param: e.param ?? null, details: e.details ?? null, requestId, status },
+    { code, message: messageText, retryable, param: e.param ?? null, details: e.details ?? null, requestId, status } as JsonObject,
     {
       message,
       description,
       httpCode: String(status)
     }
   );
-  error.code = code;
-  error.retryable = retryable;
-  error.param = e.param ?? null;
-  error.requestId = requestId;
   // Seconds, 0 included — HTTP reads that as "now". Absent, blank or an HTTP-date leaves the backoff schedule to it.
   const retryAfter = String(header(headers, "retry-after") ?? "").trim();
-  error.retryAfter = retryAfter && Number(retryAfter) >= 0 ? Number(retryAfter) : null;
-  return error;
+  return Object.assign(error, {
+    code,
+    retryable,
+    param: e.param ?? null,
+    requestId,
+    retryAfter: retryAfter && Number(retryAfter) >= 0 ? Number(retryAfter) : null
+  });
 }
 
 // ── Assets ────────────────────────────────────────────────────────────────────────────────────
@@ -216,14 +281,20 @@ function toNodeApiError(ctx, status, json, where, headers) {
 /**
  * Upload the binary property of one input item: stage (presigned PUT) → PUT the bytes with the
  * binary's mime type → finish → (optionally) poll until ingest has written dimensions / metadata.
- * @returns {Promise<object>} the asset
+ * @returns the asset
  */
-async function uploadBinary(
-  ctx,
-  itemIndex,
-  binaryProperty,
-  { collection, retentionDays, wait = true, waitSeconds = 120, intervalMs } = {}
-) {
+export async function uploadBinary(
+  ctx: IExecuteFunctions,
+  itemIndex: number,
+  binaryProperty: string,
+  {
+    collection,
+    retentionDays,
+    wait = true,
+    waitSeconds = 120,
+    intervalMs
+  }: { collection?: string; retentionDays?: number; wait?: boolean; waitSeconds?: number; intervalMs?: number } = {}
+): Promise<Asset> {
   const meta = ctx.helpers.assertBinaryData(itemIndex, binaryProperty);
   const buffer = await ctx.helpers.getBinaryDataBuffer(itemIndex, binaryProperty);
   const fileName = meta.fileName || `upload${meta.fileExtension ? `.${meta.fileExtension}` : ""}`;
@@ -231,7 +302,10 @@ async function uploadBinary(
   const sha1Hash = createHash("sha1").update(buffer).digest("hex");
 
   const staged = (
-    await apiRequest(ctx, "POST", "/api/v1/assets/stage-upload", { body: [{ fileName, fileSize: buffer.length, sha1Hash }], itemIndex })
+    await apiRequest<Staged | Staged[]>(ctx, "POST", "/api/v1/assets/stage-upload", {
+      body: [{ fileName, fileSize: buffer.length, sha1Hash }],
+      itemIndex
+    })
   ).data;
   const stage = Array.isArray(staged) ? staged[0] : staged;
   if (!stage || stage.error) {
@@ -243,7 +317,7 @@ async function uploadBinary(
   // Same bytes already ingested by this account → reuse that asset (one API round-trip, no upload).
   // Otherwise ALWAYS PUT: the presigned slot is a fresh, empty object even when `exists` is true.
   if (stage.exists && stage.existingAssetId) {
-    const existing = (await apiRequest(ctx, "GET", `/api/v1/assets/${encodeURIComponent(stage.existingAssetId)}`)).data;
+    const existing = (await apiRequest<Asset>(ctx, "GET", `/api/v1/assets/${encodeURIComponent(stage.existingAssetId)}`)).data;
     if (existing && existing.status === "DONE") return existing;
   }
   // Storage, not the API: no credential, no envelope. n8n's plain httpRequest streams the Buffer.
@@ -257,7 +331,7 @@ async function uploadBinary(
     json: false
   });
   const created = (
-    await apiRequest(ctx, "POST", "/api/v1/assets/finish-upload", {
+    await apiRequest<Asset | Asset[]>(ctx, "POST", "/api/v1/assets/finish-upload", {
       // Which staged object, its name, the collection (#232) and how long to keep it (#591): the service knows the rest.
       body: [{ objectId: stage.objectId, name: fileName, collection: collection || undefined, retentionDays: retentionDays || undefined }],
       itemIndex
@@ -267,6 +341,19 @@ async function uploadBinary(
   if (!wait) return asset;
   return waitAssetReady(ctx, asset.id, { timeoutMs: waitSeconds * 1000, intervalMs });
 }
+
+/** One answer of `POST /api/v1/assets/stage-upload`. */
+interface Staged {
+  url: string;
+  objectId: string;
+  contentType?: string;
+  exists?: boolean;
+  existingAssetId?: string;
+  error?: string;
+}
+
+/** One answer of `POST /api/v1/assets/from-url`: an asset, or the reason that URL made none. */
+type Ingested = Partial<Asset> & { url: string; error?: string };
 
 /** URLs per `POST /api/v1/assets/from-url`: the service's `IngestController.MAX_URLS`. */
 const URLS_PER_INGEST = 20;
@@ -278,42 +365,62 @@ const IDS_PER_STATUS = 100;
  * n8n, which on n8n Cloud has nowhere to put it anyway. One result per URL, in order — `{ url, asset }` or
  * `{ url, error }` — so one dead link does not cost the rest of the list.
  */
-async function uploadFromUrls(ctx, urls, { collection, retentionDays, wait = true, intervalMs, itemIndex } = {}) {
+export async function uploadFromUrls(
+  ctx: Context,
+  urls: string[],
+  {
+    collection,
+    retentionDays,
+    wait = true,
+    intervalMs,
+    itemIndex
+  }: { collection?: string; retentionDays?: number; wait?: boolean; intervalMs?: number; itemIndex?: number } = {}
+): Promise<Array<{ url: string; asset?: Asset; error?: string }>> {
   // Twenty to a request (#525): the service refuses a longer list whole (`IngestController.MAX_URLS`), and the field
   // takes any number.
-  const results = [];
+  const results: Ingested[] = [];
   for (let at = 0; at < urls.length; at += URLS_PER_INGEST) {
     const body = {
       urls: urls.slice(at, at + URLS_PER_INGEST),
       collection: collection || undefined,
       retentionDays: retentionDays || undefined
     };
-    results.push(...((await apiRequest(ctx, "POST", "/api/v1/assets/from-url", { body, itemIndex })).data || []));
+    results.push(...((await apiRequest<Ingested[] | null>(ctx, "POST", "/api/v1/assets/from-url", { body, itemIndex })).data || []));
   }
-  const created = results.filter((r) => !r.error).map((r) => r.id);
+  const created = results.filter((r) => !r.error).map((r) => String(r.id));
   const ready = wait && created.length ? await waitAssetsReady(ctx, created, { intervalMs }) : null;
-  return results.map((r) => (r.error ? { url: r.url, error: r.error } : { url: r.url, asset: ready ? ready.get(r.id) : r }));
+  return results.map((r) =>
+    r.error ? { url: r.url, error: r.error } : { url: r.url, asset: ready ? ready.get(String(r.id)) : (r as Asset & { url: string }) }
+  );
 }
 
 /** One asset: {@link waitAssetsReady} for one id. */
-async function waitAssetReady(ctx, id, opts = {}) {
-  return (await waitAssetsReady(ctx, [id], opts)).get(id);
+async function waitAssetReady(ctx: Context, id: string, opts: { intervalMs?: number; timeoutMs?: number } = {}): Promise<Asset> {
+  return (await waitAssetsReady(ctx, [id], opts)).get(id) as Asset;
 }
 
 /**
  * Wait until none of `ids` is PROCESSING — one batch-status call per tick for all of them (#233; #525: they used to be
  * waited for one after another, a 1.5 s floor each), then one read of each whole asset, eight at a time.
- * @returns {Promise<Map<string, object>>}
  */
-async function waitAssetsReady(ctx, ids, { intervalMs = 1500, timeoutMs = 120_000 } = {}) {
+async function waitAssetsReady(
+  ctx: Context,
+  ids: string[],
+  { intervalMs = 1500, timeoutMs = 120_000 }: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<Map<string, Asset>> {
   const deadline = Date.now() + timeoutMs;
   const unique = [...new Set(ids)];
   let pending = unique;
   for (;;) {
-    const still = [];
+    const still: Array<{ id: string; status: string }> = [];
     for (let at = 0; at < pending.length; at += IDS_PER_STATUS) {
       const batch = pending.slice(at, at + IDS_PER_STATUS);
-      const items = (await apiRequest(ctx, "POST", "/api/v1/assets/status", { body: { ids: batch } })).data?.items || [];
+      const items =
+        (
+          await apiRequest<{ items?: Array<{ id: string; status: string }> } | null>(ctx, "POST", "/api/v1/assets/status", {
+            body: { ids: batch }
+          })
+        ).data?.items || [];
       const byId = new Map(items.map((item) => [item.id, item]));
       for (const id of batch) {
         const item = byId.get(id);
@@ -334,37 +441,44 @@ async function waitAssetsReady(ctx, ids, { intervalMs = 1500, timeoutMs = 120_00
     pending = still.map((item) => item.id);
     await sleep(intervalMs);
   }
-  const read = [];
+  const read: Asset[] = [];
   for (let at = 0; at < unique.length; at += 8) read.push(...(await Promise.all(unique.slice(at, at + 8).map((id) => getAsset(ctx, id)))));
   return new Map(unique.map((id, n) => [id, read[n]]));
 }
 
-async function getAsset(ctx, id) {
-  return (await apiRequest(ctx, "GET", `/api/v1/assets/${encodeURIComponent(id)}`)).data;
+export async function getAsset(ctx: Context, id: string): Promise<Asset> {
+  return (await apiRequest<Asset>(ctx, "GET", `/api/v1/assets/${encodeURIComponent(id)}`)).data;
 }
 
 /** One page of a listing, the unset filters left off the query string. */
-async function listPage(ctx, path, params) {
-  const qs = {};
+async function listPage<T>(ctx: Context, path: string, params: IDataObject | undefined): Promise<{ items: T[]; meta?: PageMeta }> {
+  const qs: IDataObject = {};
   for (const [k, v] of Object.entries(params || {})) if (v !== undefined && v !== null && v !== "") qs[k] = v;
-  const { data, meta } = await apiRequest(ctx, "GET", path, { qs });
+  const { data, meta } = await apiRequest<T[] | null>(ctx, "GET", path, { qs });
   return { items: data || [], meta };
 }
 
-async function listAssets(ctx, params) {
-  return listPage(ctx, "/api/v1/assets", params);
+export async function listAssets(ctx: Context, params?: IDataObject): Promise<{ items: Asset[]; meta?: PageMeta }> {
+  return listPage<Asset>(ctx, "/api/v1/assets", params);
 }
 
 /** The account's collections, most recently added to first (imagestep#349). */
-async function listCollections(ctx, params) {
+export async function listCollections(
+  ctx: Context,
+  params?: IDataObject
+): Promise<{ items: Array<{ collection: string; count: number; lastCreatedAt?: string | number }>; meta?: PageMeta }> {
   return listPage(ctx, "/api/v1/assets/collections", params);
 }
 
 /** Publish → each asset gets a stable `publicUrl` on the CDN. */
-async function publishAssets(ctx, ids, { published = true, itemIndex } = {}) {
-  const list = [].concat(ids).filter(Boolean);
+export async function publishAssets(
+  ctx: Context,
+  ids: string | string[],
+  { published = true, itemIndex }: { published?: boolean; itemIndex?: number } = {}
+): Promise<Asset[]> {
+  const list = ([] as string[]).concat(ids).filter(Boolean);
   if (!list.length) return [];
-  return (await apiRequest(ctx, "POST", "/api/v1/assets/update", { body: { ids: list, published }, itemIndex })).data || [];
+  return (await apiRequest<Asset[] | null>(ctx, "POST", "/api/v1/assets/update", { body: { ids: list, published }, itemIndex })).data || [];
 }
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────────────────────
@@ -374,7 +488,7 @@ const MAX_SERVER_WAIT_SECONDS = 60;
 /** How much longer than the window it asked for a request is given, so the node's own timeout never ends a wait. */
 const WAIT_GRACE_MS = 15_000;
 
-function serverWaitSeconds(msLeft) {
+function serverWaitSeconds(msLeft: number): number {
   return Math.max(1, Math.min(MAX_SERVER_WAIT_SECONDS, Math.ceil(msLeft / 1000)));
 }
 
@@ -382,11 +496,16 @@ function serverWaitSeconds(msLeft) {
  * `waitMs` starts the wait on the submit itself (#355): a job of one item that settles inside the service's window comes
  * back finished, in one round trip. The service ignores it on a batch and on a dry run.
  */
-async function submitJob(ctx, body, { dryRun = false, waitMs = 0, itemIndex } = {}) {
-  if (dryRun || !waitMs) return (await apiRequest(ctx, "POST", `/api/v1/jobs${dryRun ? "?dryRun=true" : ""}`, { body, itemIndex })).data;
+export async function submitJob(
+  ctx: Context,
+  body: JobBody,
+  { dryRun = false, waitMs = 0, itemIndex }: { dryRun?: boolean; waitMs?: number; itemIndex?: number } = {}
+): Promise<Job> {
+  if (dryRun || !waitMs)
+    return (await apiRequest<Job>(ctx, "POST", `/api/v1/jobs${dryRun ? "?dryRun=true" : ""}`, { body, itemIndex })).data;
   const seconds = serverWaitSeconds(waitMs);
   return (
-    await apiRequest(ctx, "POST", "/api/v1/jobs", {
+    await apiRequest<Job>(ctx, "POST", "/api/v1/jobs", {
       body: { ...body, wait: seconds },
       timeoutMs: seconds * 1000 + WAIT_GRACE_MS,
       itemIndex
@@ -395,9 +514,9 @@ async function submitJob(ctx, body, { dryRun = false, waitMs = 0, itemIndex } = 
 }
 
 /** One job; `waitSeconds` long-polls — the service holds the response until the job is terminal or the window closes. */
-async function getJob(ctx, id, { waitSeconds = 0 } = {}) {
+export async function getJob(ctx: Context, id: string, { waitSeconds = 0 }: { waitSeconds?: number } = {}): Promise<Job> {
   const opts = waitSeconds ? { qs: { wait: waitSeconds }, timeoutMs: waitSeconds * 1000 + WAIT_GRACE_MS } : {};
-  return (await apiRequest(ctx, "GET", `/api/v1/jobs/${encodeURIComponent(id)}`, opts)).data;
+  return (await apiRequest<Job>(ctx, "GET", `/api/v1/jobs/${encodeURIComponent(id)}`, opts)).data;
 }
 
 /**
@@ -411,7 +530,11 @@ async function getJob(ctx, id, { waitSeconds = 0 } = {}) {
  * branches on (#570): `retryable: true`, `timedOut: true` and the `job` itself, which Continue On Fail turns into the job
  * handle. It carried none of them, and a Continue On Fail row read `internal_error`, `retryable: false`.
  */
-async function waitJob(ctx, id, { intervalMs = 1000, timeoutMs = 180_000, known } = {}) {
+export async function waitJob(
+  ctx: Context,
+  id: string,
+  { intervalMs = 1000, timeoutMs = 180_000, known }: { intervalMs?: number; timeoutMs?: number; known?: Job | null } = {}
+): Promise<Job> {
   const deadline = Date.now() + timeoutMs;
   let job = known;
   for (;;) {
@@ -452,9 +575,9 @@ const PAGE = 100;
  * and one `GET /assets/{id}` per output was N requests at once against a 600-a-minute budget. Each page after the first
  * is the `meta.nextCursor` the previous one carried (#493), never a page number the service would re-count.
  */
-async function jobOutputs(ctx, job) {
-  const rows = [];
-  for (let at = { page: 0 }; ;) {
+async function jobOutputs(ctx: Context, job: Job): Promise<Asset[]> {
+  const rows: Asset[] = [];
+  for (let at: IDataObject = { page: 0 }; ;) {
     const { items, meta } = await listAssets(ctx, { jobId: job.id, perPage: PAGE, ...at });
     rows.push(...items);
     if (!meta?.hasMore) break;
@@ -468,23 +591,27 @@ async function jobOutputs(ctx, job) {
  * The listing is newest-first, which for a batch is neither item order nor settle order; an item knows its own output.
  * Rows no inlined item names — past the first 100 — keep the listing's order, after the rest. (The SDKs' `inItemOrder`.)
  */
-function inItemOrder(assets, job) {
-  const order = new Map();
+function inItemOrder(assets: Asset[], job: Job): Asset[] {
+  const order = new Map<string, number>();
   for (const [index, item] of (job?.items || []).entries()) {
     if (item?.resultAssetId && !order.has(item.resultAssetId)) order.set(item.resultAssetId, index);
   }
   if (order.size === 0) return assets;
-  const at = (asset) => (order.has(asset.id) ? order.get(asset.id) : Number.MAX_SAFE_INTEGER);
+  const at = (asset: Asset) => order.get(asset.id) ?? Number.MAX_SAFE_INTEGER;
   return assets.slice().sort((a, b) => at(a) - at(b));
 }
 
 /** Outputs of a job, published when asked (a page of ids per call, see {@link PAGE}), ready for `jobRef(job, outputs)`. */
-async function collectOutputs(ctx, job, { publish, itemIndex }) {
+export async function collectOutputs(
+  ctx: Context,
+  job: Job,
+  { publish, itemIndex }: { publish: boolean; itemIndex?: number }
+): Promise<Asset[]> {
   const none = typeof job.completedItems === "number" ? job.completedItems === 0 : !(job.items || []).some((i) => i.resultAssetId);
   if (none) return [];
   const outputs = await jobOutputs(ctx, job);
   if (!publish || outputs.every((a) => a.publicUrl)) return outputs;
-  const published = [];
+  const published: Asset[] = [];
   for (let at = 0; at < outputs.length; at += PAGE) {
     const chunk = outputs.slice(at, at + PAGE);
     if (chunk.every((a) => a.publicUrl)) published.push(...chunk);
@@ -505,7 +632,7 @@ async function collectOutputs(ctx, job, { publish, itemIndex }) {
 }
 
 /** Fetch one published output from the CDN into an n8n binary (`{ buffer, mimeType, fileName }`). */
-async function downloadOutput(ctx, asset) {
+export async function downloadOutput(ctx: Context, asset: Asset): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
   if (!asset.publicUrl) {
     throw new NodeOperationError(ctx.getNode(), `Asset ${asset.id} has no publicUrl — enable Publish to download outputs`, {
       description: "retryable=false"
@@ -519,52 +646,47 @@ async function downloadOutput(ctx, asset) {
 
 // ── Catalogues (design-time dropdowns) ─────────────────────────────────────────────────────────
 
-async function listOps(ctx) {
-  return (await apiRequest(ctx, "GET", "/api/v1/ops")).data || [];
+export async function listOps(ctx: Context): Promise<OpEntry[]> {
+  return (await apiRequest<OpEntry[] | null>(ctx, "GET", "/api/v1/ops")).data || [];
 }
 
-async function listPresets(ctx) {
+/** A preset as the dropdown shows it. */
+export interface Preset {
+  id: string;
+  slug?: string;
+  name?: string;
+  description?: string;
+  builtIn?: boolean;
+}
+
+export async function listPresets(ctx: Context): Promise<Preset[]> {
   const [builtin, user] = await Promise.all([
-    apiRequest(ctx, "GET", "/api/v1/presets", { qs: { filter: "builtin" } }),
-    apiRequest(ctx, "GET", "/api/v1/presets", { qs: { filter: "user" } })
+    apiRequest<Preset[] | null>(ctx, "GET", "/api/v1/presets", { qs: { filter: "builtin" } }),
+    apiRequest<Preset[] | null>(ctx, "GET", "/api/v1/presets", { qs: { filter: "user" } })
   ]);
   return [...(builtin.data || []), ...(user.data || [])];
 }
 
 // ── Webhook endpoints (trigger lifecycle) ──────────────────────────────────────────────────────
 
-async function createWebhookEndpoint(ctx, { url, events, description }) {
-  return (await apiRequest(ctx, "POST", "/api/v1/webhook-endpoints", { body: { url, events, description } })).data;
+/** A webhook endpoint; `secret` comes back once, on creation. */
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  secret?: string;
 }
 
-async function getWebhookEndpoint(ctx, id) {
-  return (await apiRequest(ctx, "GET", `/api/v1/webhook-endpoints/${encodeURIComponent(id)}`)).data;
+export async function createWebhookEndpoint(
+  ctx: Context,
+  { url, events, description }: { url: string; events: string[]; description: string }
+): Promise<WebhookEndpoint> {
+  return (await apiRequest<WebhookEndpoint>(ctx, "POST", "/api/v1/webhook-endpoints", { body: { url, events, description } })).data;
 }
 
-async function deleteWebhookEndpoint(ctx, id) {
+export async function getWebhookEndpoint(ctx: Context, id: string): Promise<WebhookEndpoint | null> {
+  return (await apiRequest<WebhookEndpoint | null>(ctx, "GET", `/api/v1/webhook-endpoints/${encodeURIComponent(id)}`)).data;
+}
+
+export async function deleteWebhookEndpoint(ctx: Context, id: string): Promise<void> {
   await apiRequest(ctx, "DELETE", `/api/v1/webhook-endpoints/${encodeURIComponent(id)}`);
 }
-
-module.exports = {
-  RETRY,
-  CREDENTIAL,
-  idempotencyKey,
-  uploadBinary,
-  uploadFromUrls,
-  getAsset,
-  listAssets,
-  listCollections,
-  publishAssets,
-  submitJob,
-  getJob,
-  waitJob,
-  collectOutputs,
-  downloadOutput,
-  listOps,
-  listPresets,
-  createWebhookEndpoint,
-  getWebhookEndpoint,
-  deleteWebhookEndpoint,
-  apiRequestBinary,
-  syncEndpoints
-};

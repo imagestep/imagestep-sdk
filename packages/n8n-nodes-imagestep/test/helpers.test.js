@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createRequire } from "node:module";
+import { assetRef, jobRef, buildOpJobBody, buildPresetJobBody, normaliseIds, parseParameters } from "../lib/refs.ts";
+import { toOpOptions, PROMPT_OPS } from "../lib/ops.ts";
+import { verifySignature, parseSignatureHeader } from "../lib/signature.ts";
 import { signBody } from "./fake-context.js";
-
-const require = createRequire(import.meta.url);
-const { assetRef, jobRef, buildOpJobBody, buildPresetJobBody, normaliseIds, parseParameters } = require("../lib/refs.js");
-const { toOpOptions, PROMPT_OPS } = require("../lib/ops.js");
-const { verifySignature, parseSignatureHeader } = require("../lib/signature.js");
 
 describe("job body builders (docs/api-contract.md §8)", () => {
   it("builds an op request with only the fields that were given", () => {

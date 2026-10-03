@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-imagestep",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ImageStep for n8n — the image step for your automations: generate, edit, remove background, upscale, resize, convert and read metadata as one node, plus a webhook trigger for finished jobs.",
   "license": "MIT",
   "author": {
@@ -34,8 +34,10 @@
     ]
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "@vitest/coverage-v8": "^5.0.1",
     "n8n-workflow": "^2.16.0",
+    "typescript": "^5.9.3",
     "vitest": "^5.0.1"
   },
   "peerDependencies": {

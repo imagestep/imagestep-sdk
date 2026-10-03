@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { properties as N8N_PROPERTIES } from "../../packages/n8n-nodes-imagestep/nodes/ImageStep/description.ts";
 
 /**
  * What can be checked about the recipes without calling the API (imagestep#458 / #650).
@@ -14,7 +15,6 @@ import { describe, expect, it } from "vitest";
  */
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const require = createRequire(import.meta.url);
-const { properties: N8N_PROPERTIES } = require("../../packages/n8n-nodes-imagestep/nodes/ImageStep/description.js");
 const { checkTemplate } = require("../../packages/n8n-nodes-imagestep/test/template-check.js");
 
 /** A recipe is a top-level folder with an n8n template in it. */

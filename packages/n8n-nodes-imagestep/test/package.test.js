@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,19 +41,24 @@ describe("package manifest (n8n verification guidelines)", () => {
     expect(pkg.n8n.nodes).toEqual(["dist/nodes/ImageStep/ImageStep.node.js", "dist/nodes/ImageStepTrigger/ImageStepTrigger.node.js"]);
   });
 
-  it("source requires only Node built-ins, n8n-workflow and relative files", () => {
+  it("source imports only Node built-ins, n8n-workflow and relative files", () => {
     const allowed = new Set(["n8n-workflow"]);
-    for (const file of ["nodes", "credentials", "lib"].flatMap((dir) => walk(join(root, dir))).filter((f) => f.endsWith(".js"))) {
+    const seen = new Set();
+    for (const file of ["nodes", "credentials", "lib"].flatMap((dir) => walk(join(root, dir))).filter((f) => f.endsWith(".ts"))) {
       const text = readFileSync(file, "utf8");
-      for (const m of text.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)) {
+      expect(text, `${file} must not require()`).not.toMatch(/\brequire\s*\(/);
+      for (const m of text.matchAll(/^\s*(?:import|export)\b[^"';]*?\bfrom\s*["']([^"']+)["']/gm)) {
         const spec = m[1];
+        seen.add(spec);
         if (spec.startsWith(".")) continue;
         const bare = spec.replace(/^node:/, "");
         const isBuiltin = spec.startsWith("node:") || builtinModules.includes(bare);
-        expect(isBuiltin || allowed.has(spec), `${file} requires ${spec}`).toBe(true);
+        expect(isBuiltin || allowed.has(spec), `${file} imports ${spec}`).toBe(true);
       }
       expect(text, `${file} must not import()`).not.toMatch(/\bimport\s*\(/);
     }
+    // A pattern that stopped matching would pass every file above without reading one import.
+    expect(seen).toContain("n8n-workflow");
   });
 });
 
@@ -62,11 +67,17 @@ describe("build output", () => {
     execFileSync(process.execPath, [join(root, "scripts", "build.mjs")], { stdio: "pipe" });
   });
 
-  it("produces every path the n8n manifest names, plus the icon next to each node", () => {
+  it("produces every path the n8n manifest names, and the icon each node and the credential name", () => {
     for (const rel of [...pkg.n8n.credentials, ...pkg.n8n.nodes]) expect(existsSync(join(root, rel)), rel).toBe(true);
-    expect(existsSync(join(root, "dist/nodes/ImageStep/imagestep.svg"))).toBe(true);
-    expect(existsSync(join(root, "dist/nodes/ImageStepTrigger/imagestep.svg"))).toBe(true);
     expect(existsSync(join(root, "dist/nodes/ImageStep/ImageStep.node.json"))).toBe(true);
+    // n8n resolves `icon: "file:…"` relative to the file that declares it.
+    for (const rel of [...pkg.n8n.credentials, ...pkg.n8n.nodes]) {
+      const { [basename(rel, ".js").split(".")[0]]: Type } = require(join(root, rel));
+      const declared = new Type();
+      const icon = (declared.description ?? declared).icon;
+      expect(icon, rel).toMatch(/^file:/);
+      expect(existsSync(join(root, dirname(rel), icon.slice("file:".length))), `${rel} → ${icon}`).toBe(true);
+    }
   });
 
   it("exports a class named after each file, the way n8n's loader looks it up", () => {
@@ -95,7 +106,7 @@ describe("n8n's community package scan", () => {
   it("uses no timer global in the node's code (n8n-workflow's sleep instead)", () => {
     const hits = ["nodes", "credentials", "lib"]
       .flatMap((dir) => walk(join(root, dir)))
-      .filter((file) => file.endsWith(".js"))
+      .filter((file) => file.endsWith(".ts"))
       .flatMap((file) =>
         readFileSync(file, "utf8")
           .split("\n")
@@ -109,13 +120,20 @@ describe("n8n's community package scan", () => {
 
 /**
  * imagestep#602 — n8n's Creator Portal checks the source repo, not the tarball: 0.1.1 failed its automatic vetting with
- * "Can't find credential file in repo" while the sources sat under `src/`. It looks where the n8n starter puts them —
- * `credentials/` and `nodes/` at the package root, the same paths the `n8n` manifest names under `dist/`.
+ * "Can't find credential file in repo" while the sources sat under `src/`, and 0.1.2 failed it again with them at the
+ * package root as JavaScript. It looks for what the n8n starter has — TypeScript: a `*.credentials.ts` under
+ * `credentials/` and a `*.node.ts` per node under `nodes/`, the same paths the `n8n` manifest names under `dist/` as `.js`.
  */
 describe("sources where n8n's Creator Portal looks for them", () => {
-  it.each([...pkg.n8n.credentials, ...pkg.n8n.nodes])("%s is built from the same path at the package root", (built) => {
-    expect(built.startsWith("dist/")).toBe(true);
-    expect(existsSync(join(root, built.slice("dist/".length))), built).toBe(true);
+  it.each([...pkg.n8n.credentials, ...pkg.n8n.nodes])("%s is built from the same path at the package root, in TypeScript", (built) => {
+    expect(built).toMatch(/^dist\/.+\.js$/);
+    const source = built.slice("dist/".length).replace(/\.js$/, ".ts");
+    expect(existsSync(join(root, source)), source).toBe(true);
+  });
+
+  it("keeps no JavaScript beside the TypeScript sources", () => {
+    const js = ["nodes", "credentials", "lib"].flatMap((dir) => walk(join(root, dir))).filter((f) => /\.[cm]?js$/.test(f));
+    expect(js).toEqual([]);
   });
 
   it("keeps no src/ directory", () => {

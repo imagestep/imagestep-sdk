@@ -1,14 +1,12 @@
-"use strict";
-
-const { createHmac, timingSafeEqual } = require("node:crypto");
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
  * Webhook signature verification (docs/api-contract.md §6 «Verifying»).
  * Header `ImageStep-Signature: t=<epoch s>,v1=<hex hmac-sha256>` over `"<t>.<raw body>"`.
  * Node-only (node:crypto) — this package never runs at the edge.
  */
-function parseSignatureHeader(header) {
-  const parts = {};
+export function parseSignatureHeader(header: unknown): { timestamp: number; signature: string | null } {
+  const parts: Record<string, string> = {};
   for (const kv of String(header || "").split(",")) {
     const i = kv.indexOf("=");
     if (i <= 0) continue;
@@ -18,13 +16,16 @@ function parseSignatureHeader(header) {
 }
 
 /**
- * @param {string|Buffer} rawBody the request body exactly as received (not re-serialised)
- * @param {string} header the `ImageStep-Signature` header
- * @param {string} secret the endpoint secret shown once at creation
- * @param {{ toleranceSeconds?: number, now?: number }} [opts]
- * @returns {boolean}
+ * @param rawBody the request body exactly as received (not re-serialised)
+ * @param header the `ImageStep-Signature` header
+ * @param secret the endpoint secret shown once at creation
  */
-function verifySignature(rawBody, header, secret, opts = {}) {
+export function verifySignature(
+  rawBody: string | Buffer,
+  header: unknown,
+  secret: string | undefined,
+  opts: { toleranceSeconds?: number; now?: number } = {}
+): boolean {
   const { timestamp, signature } = parseSignatureHeader(header);
   if (!timestamp || !signature || !secret) return false;
   const tolerance = opts.toleranceSeconds ?? 300;
@@ -36,5 +37,3 @@ function verifySignature(rawBody, header, secret, opts = {}) {
   if (given.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(given, "utf8"), Buffer.from(expected, "utf8"));
 }
-
-module.exports = { parseSignatureHeader, verifySignature };

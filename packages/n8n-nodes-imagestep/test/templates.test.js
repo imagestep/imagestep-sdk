@@ -2,9 +2,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { properties } from "../nodes/ImageStep/description.ts";
 
 const require = createRequire(import.meta.url);
-const { properties } = require("../nodes/ImageStep/description.js");
 const { NODE_TYPE, checkTemplate } = require("./template-check.js");
 
 const DIR = join(import.meta.dirname, "..", "templates");
