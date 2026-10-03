@@ -1,0 +1,11 @@
+:root { --bg: #f6f1e9; --ink: #1d1a16; --muted: #6b6258; --accent: #c2410c; --badge: #1d1a16; --badge-ink: #f6f1e9; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1080px; height: 1350px; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; -webkit-font-smoothing: antialiased; }
+.card { width: 1080px; height: 1350px; padding: 104px 96px; display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(160deg, #fbf8f3 0%, var(--bg) 60%, #efe6d8 100%); border-left: 24px solid var(--accent); }
+.brand { font-size: 32px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.body { display: flex; flex-direction: column; gap: 36px; }
+h1 { font-size: 112px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+.body p { font-size: 46px; line-height: 1.3; color: var(--muted); max-width: 18ch; }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+.price { font-size: 64px; font-weight: 800; padding: 22px 40px; border-radius: 999px; background: var(--badge); color: var(--badge-ink); font-variant-numeric: tabular-nums; }
+.cta { font-size: 38px; font-weight: 600; color: var(--ink); border-bottom: 4px solid var(--accent); padding-bottom: 6px; }

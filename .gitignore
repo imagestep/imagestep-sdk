@@ -1,0 +1,13 @@
+node_modules
+.DS_Store
+*.log
+**/coverage/
+packages/*/dist/
+sdk/*/dist/
+.packs/
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.env.*
+!.env.example

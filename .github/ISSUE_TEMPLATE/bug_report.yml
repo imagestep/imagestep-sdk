@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in an SDK, the CLI, the MCP server, the n8n node, a recipe or an API answer is wrong.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Where
+      options:
+        - imagestep (JavaScript SDK)
+        - imagestep (Python SDK)
+        - imagestep-cli
+        - "@imagestep/mcp"
+        - n8n-nodes-imagestep
+        - recipes
+        - The API itself
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The package version, or "hosted" for the hosted MCP server or the API.
+      placeholder: 0.1.0
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you got. A short snippet that shows it is the most useful thing.
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: Request id
+      description: The `requestId` from the error, if the API answered one. It lets us find the call in our logs.

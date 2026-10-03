@@ -1,0 +1,23 @@
+name: Set up uv
+description: uv and uvx from uv's own release tarball, at the one version pinned here, put on PATH.
+
+# From the release binary rather than uv's installer script, for the reason setup-pnpm spells out:
+# the installer is another unbounded network step, and this is one GET with a bound. This file is the
+# only place the version is written. Both binaries: the Python SDK's tests run under `uv run --frozen`,
+# and its type generator runs with `uvx`.
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv (release binary, pinned)
+      shell: bash
+      env:
+        UV_VERSION: 0.6.10
+      run: |
+        mkdir -p "$RUNNER_TEMP/uv"
+        curl -fsSL --retry 3 --retry-all-errors --max-time 120 \
+          "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-unknown-linux-gnu.tar.gz" \
+          | tar -xz -C "$RUNNER_TEMP/uv" --strip-components=1 \
+            uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx
+        echo "$RUNNER_TEMP/uv" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/uv/uv" --version

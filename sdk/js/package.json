@@ -1,0 +1,67 @@
+{
+  "name": "imagestep",
+  "version": "0.1.0",
+  "description": "ImageStep SDK — the image step for your automations: generate, edit, remove backgrounds, upscale, convert and read metadata through one API key, one job handle and one stable URL.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./src/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./src/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "src",
+    "dist",
+    "types",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --platform=neutral --format=cjs --outfile=dist/index.cjs --target=node20 --external:node:*",
+    "gen:types": "node scripts/gen-types.mjs",
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
+    "esbuild": "^0.28.2",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imagestep/imagestep-sdk.git",
+    "directory": "sdk/js"
+  },
+  "homepage": "https://imagestep.dev",
+  "bugs": {
+    "url": "https://imagestep.dev/support"
+  },
+  "keywords": [
+    "imagestep",
+    "image",
+    "api",
+    "remove-background",
+    "upscale",
+    "image-generation",
+    "automation",
+    "n8n",
+    "mcp"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -1,0 +1,269 @@
+{
+  "name": "ImageStep recipe — templated cards: Sheet row → an HTML/CSS template rendered → JPEG → URL back",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Promo cards"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0001-4c00-8000-000000000001",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "op",
+        "operation": "run",
+        "op": "render_template",
+        "inputMode": "none",
+        "parameters": "={{ JSON.stringify({ templateId: 'promo-card', items: [{ brand: $json.brand, title: $json.title, subtitle: $json.subtitle, price: $json.price, cta: $json.cta }] }) }}",
+        "dryRun": false,
+        "storeResult": true,
+        "wait": true,
+        "waitSeconds": 120,
+        "publish": false,
+        "options": {
+          "collection": "templated-cards"
+        }
+      },
+      "id": "c3d4e5f6-0002-4c00-8000-000000000002",
+      "name": "Render the Card",
+      "type": "n8n-nodes-imagestep.imageStep",
+      "typeVersion": 1,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "imageStepApi": {
+          "id": "REPLACE_ME",
+          "name": "ImageStep account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "op",
+        "operation": "run",
+        "op": "convert",
+        "inputMode": "assetIds",
+        "assetIds": "={{ $json.outputs[0].assetId }}",
+        "parameters": "{\"format\": \"jpeg\", \"quality\": 88}",
+        "dryRun": false,
+        "storeResult": true,
+        "wait": true,
+        "waitSeconds": 60,
+        "publish": true,
+        "downloadOutput": false,
+        "options": {
+          "collection": "templated-cards"
+        }
+      },
+      "id": "c3d4e5f6-0003-4c00-8000-000000000003",
+      "name": "To JPEG",
+      "type": "n8n-nodes-imagestep.imageStep",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "imageStepApi": {
+          "id": "REPLACE_ME",
+          "name": "ImageStep account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Promo cards"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Google Sheets Trigger').item.json.row_number }}",
+            "url": "={{ $json.outputs[0].publicUrl }}",
+            "jobId": "={{ $json.jobId }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "type": "number",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "brand",
+              "displayName": "brand",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subtitle",
+              "displayName": "subtitle",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cta",
+              "displayName": "cta",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobId",
+              "displayName": "jobId",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c3d4e5f6-0004-4c00-8000-000000000004",
+      "name": "Write Back to the Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        780,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Render the Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render the Card": {
+      "main": [
+        [
+          {
+            "node": "To JPEG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To JPEG": {
+      "main": [
+        [
+          {
+            "node": "Write Back to the Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

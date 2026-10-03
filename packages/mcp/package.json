@@ -1,0 +1,62 @@
+{
+  "name": "@imagestep/mcp",
+  "mcpName": "dev.imagestep/mcp",
+  "version": "0.1.0",
+  "description": "ImageStep MCP server — the image pipeline for agents: presets, assets and jobs as seven tools (generate · transform · run_preset · save_preset · job_status · search_assets · send_feedback). Runs locally over stdio (npx) or remotely over Streamable HTTP.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "imagestep-mcp": "./bin/imagestep-mcp.js"
+  },
+  "exports": {
+    ".": "./src/server.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/imagestep-mcp.js",
+    "start:http": "node bin/imagestep-mcp.js --http",
+    "test": "vitest run",
+    "eval": "node eval/run.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "imagestep": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@vitest/coverage-v8": "^5.0.1",
+    "vitest": "^5.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imagestep/imagestep-sdk.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://imagestep.dev/docs/mcp",
+  "bugs": {
+    "url": "https://imagestep.dev/support"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "imagestep",
+    "image",
+    "agents",
+    "remove-background",
+    "upscale"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

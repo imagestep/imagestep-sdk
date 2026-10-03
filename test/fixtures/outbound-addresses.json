@@ -1,0 +1,41 @@
+{
+  "about": "imagestep#475 / #479 — one list of addresses an outbound fetch must refuse and must allow, for every copy of the rule (ledger C52): the service's WebhookTargetGuard and the MCP server's safe-url.js. IPv6 entries are the address as a resolver hands it over; a test that builds an InetAddress from one builds an Inet6Address, so a v4-mapped entry is not quietly turned into an IPv4 one first.",
+  "refused": [
+    "127.0.0.1",
+    "10.1.2.3",
+    "169.254.169.254",
+    "172.16.0.1",
+    "192.168.1.1",
+    "100.64.0.1",
+    "0.0.0.0",
+    "::",
+    "::1",
+    "::ffff:127.0.0.1",
+    "::ffff:7f00:1",
+    "::ffff:10.0.0.1",
+    "::ffff:a9fe:a9fe",
+    "::127.0.0.1",
+    "::ffff:0:7f00:1",
+    "64:ff9b::a9fe:a9fe",
+    "64:ff9b::10.1.2.3",
+    "64:ff9b:1::1",
+    "2002:7f00:1::",
+    "2002:c0a8:101::1",
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+    "2001:db8::1",
+    "fd00::1",
+    "fe80::1",
+    "fe90::1",
+    "fec0::1",
+    "ff02::1"
+  ],
+  "allowed": [
+    "8.8.8.8",
+    "104.16.0.1",
+    "2606:4700::1111",
+    "2a00:1450:4001:80b::200e",
+    "::ffff:8.8.8.8",
+    "64:ff9b::808:808",
+    "2002:808:808::1"
+  ]
+}

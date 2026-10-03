@@ -1,0 +1,369 @@
+{
+  "name": "ImageStep recipe — social carousel: Sheet row → 4 cards, same character → URLs back",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Same character on every carousel card\n\nEvery row you add to a Google Sheet becomes four social-carousel images with the same character on all of them, published, with the four URLs written back into the row. Built on [ImageStep](https://imagestep.dev/?utm_source=n8n-templates&utm_medium=template&utm_campaign=social-carousel), an image API for automations.\n\n### How it works\n1. **Google Sheets Trigger** picks up a new row (`headline`, `subline`).\n2. **Build the Prompt** writes the row's scene with `{{subject.hero}}` where the character goes; ImageStep fills in the wording saved on the preset. It is a Code node because n8n reads `{{ }}` in a field as its own expression.\n3. **Generate 4 Cards** runs the ImageStep preset `carousel-brand` with Count 4. Its subject (reference images plus a locked description) goes with every generation, so the fortieth row draws the character the first one did.\n4. **Four URLs Per Row** and **Write URLs Back** put `url1` to `url4`, the job id and the status into the same row.\n\n### Setup\n1. Install the ImageStep node (`n8n-nodes-imagestep`) and add an ImageStep credential with an API key from [imagestep.dev/keys](https://imagestep.dev/keys?utm_source=n8n-templates&utm_medium=template&utm_campaign=social-carousel).\n2. Save the `carousel-brand` preset once: the [recipe's script](https://github.com/imagestep/imagestep-sdk/tree/main/recipes/social-carousel?utm_source=n8n-templates&utm_medium=template&utm_campaign=social-carousel) does it from your reference images.\n3. Make a sheet with the columns `headline`, `subline`, `url1` to `url4`, `jobId` and `status`, and pick it in both Google Sheets nodes.\n4. Turn on **Dry Run** in Generate 4 Cards for the first row: it prices the run and spends nothing.\n\n### Customization tips\n- Change the scene wording in Build the Prompt, and keep `{{subject.hero}}`.\n- **Count** sets the cards per row; **Version** pins a preset version.\n- More pipelines and the pictures a real run made: [imagestep.dev/docs/recipes](https://imagestep.dev/docs/recipes?utm_source=n8n-templates&utm_medium=template&utm_campaign=social-carousel#social-carousel).",
+        "height": 780,
+        "width": 560,
+        "color": 1
+      },
+      "id": "a1b2c3d4-0010-4c00-8000-000000000010",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. A new row comes in\nEvery minute the trigger looks for rows added to the sheet. Each row needs `headline` and `subline`.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "a1b2c3d4-0011-4c00-8000-000000000011",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. The scene, not the character\nThe row describes the scene. `{{subject.hero}}` stands in for the character, and ImageStep fills in the saved wording.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "a1b2c3d4-0012-4c00-8000-000000000012",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3. Four cards, one character\nOne job through the pinned preset. Its reference images and locked description are sent with every card. Turn on Dry Run to see the price first.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "a1b2c3d4-0013-4c00-8000-000000000013",
+      "name": "Sticky Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4. URLs back into the row\nThe four published URLs, the job id and the status go into the row that started it, matched on `row_number`.",
+        "height": 240,
+        "width": 500,
+        "color": 7
+      },
+      "id": "a1b2c3d4-0014-4c00-8000-000000000014",
+      "name": "Sticky Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Carousel"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4c00-8000-000000000001",
+      "name": "Google Sheets Trigger",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// The row brings the scene; the preset's subject brings the character. {{subject.hero}} is expanded by ImageStep to\n// the words saved on the preset — it is built here, in code, because n8n reads {{ }} in a field as its own expression.\nreturn $input.all().map((item) => ({\n  json: {\n    row_number: item.json.row_number,\n    prompt: `${item.json.headline}. ${item.json.subline}. Social carousel card, {{subject.hero}} as the hero, clean background with room for text, 4:5 portrait.`\n  }\n}));"
+      },
+      "id": "a1b2c3d4-0005-4c00-8000-000000000005",
+      "name": "Build the Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "preset",
+        "operation": "run",
+        "preset": "carousel-brand",
+        "presetVersion": 0,
+        "inputMode": "none",
+        "prompt": "={{ $json.prompt }}",
+        "count": 4,
+        "dryRun": false,
+        "storeResult": true,
+        "wait": true,
+        "waitSeconds": 300,
+        "publish": true,
+        "downloadOutput": false,
+        "options": {
+          "collection": "carousel"
+        }
+      },
+      "id": "a1b2c3d4-0002-4c00-8000-000000000002",
+      "name": "Generate 4 Cards",
+      "type": "n8n-nodes-imagestep.imageStep",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "credentials": {
+        "imageStepApi": {
+          "id": "REPLACE_ME",
+          "name": "ImageStep account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// One row per sheet row: the four published URLs as url1..url4 plus the job id.\nreturn $input.all().map((item) => {\n  const urls = (item.json.outputs || []).map((o) => o.publicUrl);\n  return {\n    json: {\n      row_number: $('Google Sheets Trigger').item.json.row_number,\n      jobId: item.json.jobId,\n      status: item.json.status,\n      url1: urls[0] || '',\n      url2: urls[1] || '',\n      url3: urls[2] || '',\n      url4: urls[3] || ''\n    }\n  };\n});"
+      },
+      "id": "a1b2c3d4-0003-4c00-8000-000000000003",
+      "name": "Four URLs Per Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Carousel"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "url1": "={{ $json.url1 }}",
+            "url2": "={{ $json.url2 }}",
+            "url3": "={{ $json.url3 }}",
+            "url4": "={{ $json.url4 }}",
+            "jobId": "={{ $json.jobId }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "type": "number",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subline",
+              "displayName": "subline",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url1",
+              "displayName": "url1",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url2",
+              "displayName": "url2",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url3",
+              "displayName": "url3",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url4",
+              "displayName": "url4",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "jobId",
+              "displayName": "jobId",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "type": "string",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4c00-8000-000000000004",
+      "name": "Write URLs Back",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1040,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build the Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build the Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate 4 Cards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 4 Cards": {
+      "main": [
+        [
+          {
+            "node": "Four URLs Per Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Four URLs Per Row": {
+      "main": [
+        [
+          {
+            "node": "Write URLs Back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

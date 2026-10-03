@@ -1,0 +1,16 @@
+name: Feature request
+description: Something you needed and could not do with the SDKs, the CLI, the MCP server, the n8n node or the API.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you were trying to do
+      description: The job, not the solution. What were you building, and where did ImageStep stop you?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would have worked
+      description: Optional. An op, a parameter, a method or a node field you would have used.

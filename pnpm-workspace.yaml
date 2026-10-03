@@ -1,0 +1,13 @@
+packages:
+  # The JavaScript SDK; the Python SDK next to it (sdk/python) is uv, not pnpm.
+  - "sdk/js"
+  # The command-line client.
+  - "apps/cli"
+  # The MCP server and the n8n community node.
+  - "packages/*"
+  # Complete pipelines to copy: a JS SDK script, an n8n template and a README each.
+  - "recipes"
+
+# Installs and updates pick only versions published at least 7 days (10080 minutes) ago: a fresh release is where
+# supply-chain attacks land and where a broken publish sits before its fix.
+minimumReleaseAge: 10080

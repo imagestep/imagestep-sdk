@@ -1,0 +1,6 @@
+# Only hand-written source is formatted: build output, caches and generated files are not.
+node_modules/
+dist/
+coverage/
+# generated from ImageStep's OpenAPI document
+sdk/*/types/

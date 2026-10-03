@@ -1,0 +1,65 @@
+{
+  "name": "n8n-nodes-imagestep",
+  "version": "0.1.0",
+  "description": "ImageStep for n8n — the image step for your automations: generate, edit, remove background, upscale, resize, convert and read metadata as one node, plus a webhook trigger for finished jobs.",
+  "license": "MIT",
+  "main": "index.js",
+  "files": [
+    "dist",
+    "templates",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "static-ops": "node scripts/static-ops.mjs",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/ImageStepApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/ImageStep/ImageStep.node.js",
+      "dist/nodes/ImageStepTrigger/ImageStepTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
+    "n8n-workflow": "^2.16.0",
+    "vitest": "^5.0.1"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imagestep/imagestep-sdk.git",
+    "directory": "packages/n8n-nodes-imagestep"
+  },
+  "homepage": "https://imagestep.dev/docs/n8n",
+  "bugs": {
+    "url": "https://imagestep.dev/support"
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "imagestep",
+    "image",
+    "remove-background",
+    "upscale",
+    "image-generation",
+    "resize",
+    "convert",
+    "automation"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

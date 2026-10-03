@@ -1,0 +1,25 @@
+{
+  "name": "imagestep-recipes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source recipes for ImageStep — the image step for your automations. Each folder is one pipeline: a JS SDK script, an n8n template and a README.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "carousel": "node social-carousel/carousel.mjs",
+    "scenes": "node product-scenes/scenes.mjs",
+    "trio": "node product-trio/trio.mjs",
+    "cards": "node templated-cards/cards.mjs",
+    "ingest": "node field-photo-ingest/ingest.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "imagestep": "workspace:^"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.1"
+  }
+}

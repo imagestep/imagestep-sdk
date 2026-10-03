@@ -1,0 +1,43 @@
+name: CI
+
+# Every push and pull request: the workspace installs from its lockfile, lints, runs every package's tests and packs
+# every package exactly as a release would publish it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: test-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v7
+      # Before setup-node, which asks pnpm for its store path to cache it.
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/setup-uv
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint and format
+        run: pnpm check
+      - name: Test (JavaScript packages)
+        run: pnpm test
+      - name: Test (Python SDK)
+        run: pnpm test:python
+      - name: Every package packs
+        run: |
+          for pkg in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
+            (cd "$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/packs")
+          done
+          (cd sdk/python && uv build --out-dir "$RUNNER_TEMP/packs")
+          ls -l "$RUNNER_TEMP/packs"

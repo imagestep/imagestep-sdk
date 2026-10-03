@@ -1,0 +1,116 @@
+name: Publish
+
+# The four npm packages and the Python SDK, from a tag. A `v*` tag publishes every package whose version in the tagged
+# tree is not on its registry yet and skips the rest, so the packages keep their own version numbers: bump one, tag, and
+# only that one goes out. A version that is already published is never an error; a published number cannot be reused.
+#
+# No standing token. npm and PyPI both trust this workflow by its name and the `release` environment (npm: package →
+# Settings → Trusted publisher; PyPI: project → Publishing) and hand it a short-lived credential over OIDC, which is
+# also what signs npm's provenance statement. Provenance is only issued for a public source repository, which is why
+# the packages are published from this one (`publishConfig.provenance: true` in each package.json makes a publish
+# without it fail rather than go out unsigned).
+#
+# Order matters for npm: `@imagestep/mcp` and `imagestep-cli` depend on `imagestep` (workspace:*, which `pnpm pack`
+# writes out as the exact version), so the SDK goes first.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-pnpm
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          # Writes an .npmrc that reads NODE_AUTH_TOKEN: the bootstrap below, used only while it is set.
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # By path: the four packages that publish to npm.
+      - name: Test the four packages
+        run: pnpm --filter ./sdk/js --filter ./packages/mcp --filter ./apps/cli --filter ./packages/n8n-nodes-imagestep test
+      # `pnpm pack` runs prepack but not prepublishOnly, which is where the two builds live.
+      - name: Build
+        run: |
+          pnpm --filter ./sdk/js run build
+          pnpm --filter ./packages/n8n-nodes-imagestep run build
+      # npm's own CLI does the upload: trusted publishing (OIDC) needs npm >= 11.5.1, pinned here rather than taken
+      # from whichever npm the runner's Node bundles, and fetched with pnpm (`dlx`).
+      # OIDC first: npm exchanges the job's id-token for a publish credential when the package has this workflow as its
+      # trusted publisher. A package name that has never been published cannot have one yet, so the FIRST release of a
+      # new package goes out on NPM_TOKEN (a short-lived granular token, same provenance signature), and the secret is
+      # deleted once each package names this workflow as its trusted publisher. Unset, the step is OIDC only.
+      # That token must be created with "Bypass two-factor authentication": without it the registry answers EOTP after
+      # the provenance is signed, and nobody is there to type a code. npm takes direct publish away from bypass-2FA
+      # tokens around 2027-01 — a new package after that needs a staged publish a maintainer approves, since a trusted
+      # publisher can only be configured for a package that exists.
+      - name: Pack and publish what is not on npm yet
+        env:
+          NPM_CLI: npm@11.19.1
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/tarballs"
+          mkdir -p "$out"
+          for dir in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
+            name="$(node -p "require('./$dir/package.json').name")"
+            version="$(node -p "require('./$dir/package.json').version")"
+            if [ -n "$(pnpm view "$name@$version" version 2>/dev/null || true)" ]; then
+              echo "::notice::$name@$version is already on npm — skipped"
+              continue
+            fi
+            rm -f "$out"/*.tgz
+            (cd "$dir" && pnpm pack --pack-destination "$out")
+            pnpm dlx "$NPM_CLI" publish "$out"/*.tgz --provenance --access public
+            echo "::notice::published $name@$version"
+          done
+
+  pypi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-uv
+      - name: Test
+        working-directory: sdk/python
+        run: uv run --frozen --extra dev pytest -q
+      - name: Build, unless this version is on PyPI
+        id: build
+        working-directory: sdk/python
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' imagestep/__init__.py)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/imagestep/$version/json")"
+          if [ "$code" = "200" ]; then
+            echo "::notice::imagestep $version is already on PyPI — skipped"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          uv build
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        if: steps.build.outputs.publish == 'true'
+        with:
+          packages-dir: sdk/python/dist

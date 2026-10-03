@@ -1,0 +1,122 @@
+[
+  {
+    "op": "generate",
+    "kind": "ai",
+    "description": "Text → image. Returns one asset per generated image."
+  },
+  {
+    "op": "edit",
+    "kind": "ai",
+    "description": "Image + prompt → image (instruction edit, style transfer, inpaint by description)."
+  },
+  {
+    "op": "remove_bg",
+    "kind": "ai",
+    "description": "Cut the subject out; transparent PNG result."
+  },
+  {
+    "op": "upscale",
+    "kind": "ai",
+    "description": "Increase resolution by parameters.scaleFactor, regenerating detail rather than interpolating it. The model is handed at most maxInputEdge px on the long edge, so that times the factor is the largest result."
+  },
+  {
+    "op": "restore_face",
+    "kind": "ai",
+    "description": "Fix faces in old or low-quality photos. The default model also enlarges the result, by parameters.scaleFactor."
+  },
+  {
+    "op": "colorize",
+    "kind": "ai",
+    "description": "Colour a black-and-white photo."
+  },
+  {
+    "op": "analyze",
+    "kind": "ai",
+    "description": "Image → structured JSON: a description, search tags, objects, the scene and any legible text, or the shape you pass as parameters.schema. Each item's answer is its output (items[].output on GET /api/v1/jobs/{id} and on the job.item.completed webhook). With the default schema, the answer's tags and objects are also added to the asset's tags, so GET /api/v1/assets?tag= finds it; a schema of your own leaves the asset alone. Produces no new asset."
+  },
+  {
+    "op": "resize",
+    "kind": "deterministic",
+    "description": "Scale to a box. Keeps aspect ratio unless fit=fill. Crop to an exact box with fit=cover, and let gravity=attention choose what to keep; fit=contain pads to the exact box instead."
+  },
+  {
+    "op": "convert",
+    "kind": "deterministic",
+    "description": "Change the file format."
+  },
+  {
+    "op": "compress",
+    "kind": "deterministic",
+    "description": "Re-encode smaller — at a quality target, or at a file-size target."
+  },
+  {
+    "op": "crop",
+    "kind": "deterministic",
+    "description": "Cut a rectangle out of the image at an exact offset. To crop to a size without knowing the offset, use resize with fit=cover and a gravity."
+  },
+  {
+    "op": "pad",
+    "kind": "deterministic",
+    "description": "Extend the canvas with a background colour (transparent by default)."
+  },
+  {
+    "op": "grayscale",
+    "kind": "deterministic",
+    "description": "Convert to greyscale."
+  },
+  {
+    "op": "rotate",
+    "kind": "deterministic",
+    "description": "Turn the image. Multiples of 90 are lossless; any other angle fills the corners."
+  },
+  {
+    "op": "flip",
+    "kind": "deterministic",
+    "description": "Mirror top to bottom."
+  },
+  {
+    "op": "flop",
+    "kind": "deterministic",
+    "description": "Mirror left to right."
+  },
+  {
+    "op": "trim",
+    "kind": "deterministic",
+    "description": "Cut away a uniform border — the whitespace around a cut-out, or a solid matte."
+  },
+  {
+    "op": "overlay",
+    "kind": "deterministic",
+    "description": "Put another image on top — a logo, a watermark. Job only: it reads a stored layer, and the synchronous endpoints hold no credential for one."
+  },
+  {
+    "op": "caption",
+    "kind": "deterministic",
+    "description": "Write a line of text on the image — a price, a title, a label. For anything with a layout, use render_template."
+  },
+  {
+    "op": "mask",
+    "kind": "deterministic",
+    "description": "Cut the image to a shape — a round avatar, a card with rounded corners. The result carries transparency, so it needs a format that has an alpha channel."
+  },
+  {
+    "op": "blur_region",
+    "kind": "deterministic",
+    "description": "Blur or pixelate one rectangle — a face, a licence plate, an address."
+  },
+  {
+    "op": "adjust",
+    "kind": "deterministic",
+    "description": "Brightness, contrast, saturation, hue — the batch correction a shelf of product photos needs. At least one of them is required."
+  },
+  {
+    "op": "flatten",
+    "kind": "deterministic",
+    "description": "Composite transparency onto a solid colour — what a marketplace means by \"white background\"."
+  },
+  {
+    "op": "render_template",
+    "kind": "deterministic",
+    "description": "Render an HTML/CSS template once per item of data → one PNG asset per item. Templates: POST /api/v1/templates ({{ var }} placeholders, HTML-escaped; {{{ var }}} raw)."
+  }
+]

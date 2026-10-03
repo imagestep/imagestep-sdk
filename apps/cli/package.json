@@ -1,0 +1,68 @@
+{
+  "name": "imagestep-cli",
+  "version": "0.1.0",
+  "description": "ImageStep CLI — run image ops and presets from the terminal: discover and price ops, submit and wait on jobs, manage assets, templates and webhooks, read usage",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "imagestep": "bin/imagestep.js"
+  },
+  "imports": {
+    "#commands/*": "./src/commands/*"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "start": "node bin/imagestep.js",
+    "prepublishOnly": "pnpm -w lint",
+    "test": "vitest run",
+    "test:e2e": "bash scripts/test-cli.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imagestep/imagestep-sdk.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://imagestep.dev/docs",
+  "bugs": {
+    "url": "https://imagestep.dev/support"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "keywords": [
+    "imagestep",
+    "image",
+    "image-processing",
+    "automation",
+    "api",
+    "cli"
+  ],
+  "author": "ImageStep",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^6.0.0",
+    "cli-highlight": "^2.1.11",
+    "cli-table3": "^0.6.5",
+    "commander": "^15.0.0",
+    "file-type": "^22.1.1",
+    "imagestep": "workspace:*",
+    "js-yaml": "^5.4.2",
+    "open": "^11.0.4",
+    "undici": "^8.11.2"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
+    "vitest": "^5.0.1"
+  }
+}

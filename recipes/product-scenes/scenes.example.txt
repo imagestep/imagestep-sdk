@@ -1,0 +1,4 @@
+# One scene per line; the product comes from the preset's subject, so a line only says where it is.
+on a mossy rock beside a mountain stream, morning mist
+on a café table next to a croissant, soft window light
+in a hiker's hand at a summit cairn, blue sky behind

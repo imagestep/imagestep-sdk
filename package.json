@@ -1,0 +1,35 @@
+{
+  "name": "imagestep-sdk-workspace",
+  "private": true,
+  "description": "ImageStep's clients: the JavaScript and Python SDKs, the CLI, the MCP server, the n8n node and the recipes.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "check": "pnpm lint && pnpm format:check",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write \"**/*.{js,jsx,mjs,cjs}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,mjs,cjs}\"",
+    "test": "vitest run",
+    "test:python": "cd sdk/python && uv run --frozen --extra dev pytest -q"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@vitest/coverage-v8": "^5.0.1",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "isolated-vm"
+    ]
+  }
+}
