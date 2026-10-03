@@ -39,5 +39,5 @@ jobs:
           for pkg in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
             (cd "$pkg" && pnpm pack --pack-destination "$RUNNER_TEMP/packs")
           done
-          (cd sdk/python && uv build --out-dir "$RUNNER_TEMP/packs")
+          (cd sdk/python && uv build --build-constraints build-constraints.txt --require-hashes --out-dir "$RUNNER_TEMP/packs")
           ls -l "$RUNNER_TEMP/packs"

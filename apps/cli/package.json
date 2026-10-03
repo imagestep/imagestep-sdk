@@ -1,6 +1,6 @@
 {
   "name": "imagestep-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ImageStep CLI — run image ops and presets from the terminal: discover and price ops, submit and wait on jobs, manage assets, templates and webhooks, read usage",
   "type": "module",
   "main": "src/index.js",

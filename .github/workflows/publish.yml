@@ -12,6 +12,14 @@ name: Publish
 #
 # Order matters for npm: `@imagestep/mcp` and `imagestep-cli` depend on `imagestep` (workspace:*, which `pnpm pack`
 # writes out as the exact version), so the SDK goes first.
+#
+# Two jobs per registry. The build job runs everything that executes dependency code — install, tests, builds, packs —
+# and holds no credential; it hands the files to upload to the publish job as an artifact. Only the publish job can
+# mint an OIDC token, and it runs nothing but the uploader. GitHub gives every step of a job with `id-token: write` the
+# means to mint one, and npm and PyPI trust this workflow file and its environment rather than a job, so a token minted
+# by a poisoned test dependency in a shared job could publish any of these packages. Splitting the jobs stops that
+# theft; it does not stop a poisoned build backend from changing what is built, which is why the Python build backend
+# is pinned by hash too (`sdk/python/build-constraints.txt`).
 
 on:
   push:
@@ -26,22 +34,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  npm:
+  build-npm:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: release
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      any: ${{ steps.pack.outputs.any }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-          # Writes an .npmrc that reads NODE_AUTH_TOKEN: the bootstrap below, used only while it is set.
-          registry-url: https://registry.npmjs.org
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # By path: the four packages that publish to npm.
@@ -52,6 +60,56 @@ jobs:
         run: |
           pnpm --filter ./sdk/js run build
           pnpm --filter ./packages/n8n-nodes-imagestep run build
+      # `order.txt` is the publish order, one tarball per line.
+      - name: Pack what is not on npm yet
+        id: pack
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/npm"
+          mkdir -p "$out"
+          : > "$out/order.txt"
+          for dir in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
+            name="$(node -p "require('./$dir/package.json').name")"
+            version="$(node -p "require('./$dir/package.json').version")"
+            if [ -n "$(pnpm view "$name@$version" version 2>/dev/null || true)" ]; then
+              echo "::notice::$name@$version is already on npm — skipped"
+              continue
+            fi
+            tarball="$(cd "$dir" && pnpm pack --pack-destination "$out" | tail -n 1)"
+            basename "$tarball" >> "$out/order.txt"
+          done
+          echo "any=$([ -s "$out/order.txt" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        if: steps.pack.outputs.any == 'true'
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/npm
+          if-no-files-found: error
+
+  publish-npm:
+    needs: build-npm
+    if: needs.build-npm.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # The repo only for its pinned pnpm (a local action); nothing in it is installed or run.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-pnpm
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          # Writes an .npmrc that reads NODE_AUTH_TOKEN: the bootstrap below, used only while it is set.
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v7
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/npm
       # npm's own CLI does the upload: trusted publishing (OIDC) needs npm >= 11.5.1, pinned here rather than taken
       # from whichever npm the runner's Node bundles, and fetched with pnpm (`dlx`).
       # OIDC first: npm exchanges the job's id-token for a publish credential when the package has this workflow as its
@@ -62,40 +120,34 @@ jobs:
       # the provenance is signed, and nobody is there to type a code. npm takes direct publish away from bypass-2FA
       # tokens around 2027-01 — a new package after that needs a staged publish a maintainer approves, since a trusted
       # publisher can only be configured for a package that exists.
-      - name: Pack and publish what is not on npm yet
+      - name: Publish
         env:
           NPM_CLI: npm@11.19.1
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/tarballs"
-          mkdir -p "$out"
-          for dir in sdk/js packages/mcp apps/cli packages/n8n-nodes-imagestep; do
-            name="$(node -p "require('./$dir/package.json').name")"
-            version="$(node -p "require('./$dir/package.json').version")"
-            if [ -n "$(pnpm view "$name@$version" version 2>/dev/null || true)" ]; then
-              echo "::notice::$name@$version is already on npm — skipped"
-              continue
-            fi
-            rm -f "$out"/*.tgz
-            (cd "$dir" && pnpm pack --pack-destination "$out")
-            pnpm dlx "$NPM_CLI" publish "$out"/*.tgz --provenance --access public
-            echo "::notice::published $name@$version"
-          done
+          out="$RUNNER_TEMP/npm"
+          while read -r tarball; do
+            pnpm dlx "$NPM_CLI" publish "$out/$tarball" --provenance --access public
+            echo "::notice::published $tarball"
+          done < "$out/order.txt"
 
-  pypi:
+  build-pypi:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: release
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      publish: ${{ steps.build.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-uv
       - name: Test
         working-directory: sdk/python
         run: uv run --frozen --extra dev pytest -q
+      # The build backend and everything it pulls in, at the versions and hashes in build-constraints.txt (#664).
       - name: Build, unless this version is on PyPI
         id: build
         working-directory: sdk/python
@@ -108,9 +160,29 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          uv build
+          uv build --build-constraints build-constraints.txt --require-hashes
           echo "publish=true" >> "$GITHUB_OUTPUT"
-      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+      - uses: actions/upload-artifact@v7
         if: steps.build.outputs.publish == 'true'
         with:
-          packages-dir: sdk/python/dist
+          name: python-dist
+          path: sdk/python/dist
+          if-no-files-found: error
+
+  publish-pypi:
+    needs: build-pypi
+    if: needs.build-pypi.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: python-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist

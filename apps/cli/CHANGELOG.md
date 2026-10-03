@@ -4,6 +4,13 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
+## 0.1.1 — 2026-10-03
+
+### Fixed
+
+- The package names ImageStep as its author, and the configuration code no longer carries maintainer-only notes
+  about the development environment. No change in behaviour.
+
 ## 0.1.0 — 2026-10-03
 
 First release of `imagestep`, the command-line client for the [ImageStep](https://imagestep.dev) API.
