@@ -3,14 +3,9 @@ import os from "os";
 import path from "path";
 import * as yaml from "js-yaml";
 
-// Two environments, not three. `dev` used to name https://dev-api.imagestep.dev /
-// https://dev.imagestep.dev — hostnames that never existed: the shared dev tunnel's route
-// registry never carried an imagestep entry, and the dev ingress was removed outright in
-// imagestep#38. `local` is the k3d bring-up (`setup-app.sh --preset local`); its authUrl is
-// http://localhost:4200, NOT a *.localhost Traefik host — the console has no Ingress on k3d
-// because no OAuth provider accepts a *.localhost redirect_uri, so it is reached through
-// `platform/tools/connect.sh --forward imagestep-console`, which must be up before `login`.
-// Same port as `pnpm dev` in apps/console, so both ways of running it share one origin.
+// Two environments: `prod`, ImageStep's API and console, and `local`, a development stack on this machine — the API
+// behind a `*.localhost` host, the console on port 4200 (the port its dev server uses, so both ways of running it share
+// one origin).
 const ENV_CONFIG = {
   prod: {
     serviceUrl: "https://api.imagestep.dev",
