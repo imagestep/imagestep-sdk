@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.imagestep/mcp",
+  "title": "ImageStep",
+  "description": "The image pipeline for agents: presets, assets and jobs. Answers with asset ids and stable URLs.",
+  "websiteUrl": "https://imagestep.dev/docs/mcp",
+  "repository": {
+    "url": "https://github.com/imagestep/imagestep-sdk",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@imagestep/mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "IMAGESTEP_API_KEY",
+          "description": "An ImageStep API key, created at https://imagestep.dev/keys",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.imagestep.dev/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer followed by an ImageStep API key, created at https://imagestep.dev/keys",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
