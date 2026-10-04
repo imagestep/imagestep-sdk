@@ -5,7 +5,7 @@
 //     --describe "a woman in her thirties with short silver hair, navy jacket" --rows rows.csv
 //
 // Options: --preset <slug> (default carousel-brand) · --per-row <n> (default 4) · --out <file>
-// (default <rows>.out.csv) · --model <id> (default google/gemini-3.1-flash-image-preview) ·
+// (default <rows>.out.csv) · --model <id> (default google/gemini-3.1-flash-image) ·
 // --subject <name> (default hero) · --describe <words> (the locked descriptor) ·
 // --dry-run (price only, spend nothing). IMAGESTEP_BASE_URL points it at another API host.
 //
@@ -24,7 +24,7 @@ const rowsFile = args.rows || "rows.csv";
 const outFile = args.out || rowsFile.replace(/\.csv$/i, "") + ".out.csv";
 const slug = args.preset || "carousel-brand";
 const perRow = Number(args["per-row"] || 4);
-const model = args.model || "google/gemini-3.1-flash-image-preview";
+const model = args.model || "google/gemini-3.1-flash-image";
 // The subject: a handle the prompt can name, and the locked words that go with the images.
 const subjectName = (args.subject || "hero").toLowerCase();
 const descriptor = (args.describe || "").trim();

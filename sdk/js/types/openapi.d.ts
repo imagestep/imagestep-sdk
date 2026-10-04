@@ -3131,7 +3131,7 @@ export interface components {
             maxInputEdge?: number;
             /**
              * @description Model that would run
-             * @example google/gemini-3.1-flash-image-preview
+             * @example google/gemini-3.1-flash-image
              */
             model?: string;
             /**

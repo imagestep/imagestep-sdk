@@ -4,7 +4,7 @@
 //   IMAGESTEP_API_KEY=is_sk_… node scenes.mjs --refs bottle-front.jpg,bottle-side.jpg \
 //     --describe "a matte black insulated bottle, brushed steel lid, CASA in small serif on the front" --scenes scenes.txt
 //
-// Options: --preset <slug> (default product-scenes) · --model <id> (default google/gemini-3.1-flash-image-preview) ·
+// Options: --preset <slug> (default product-scenes) · --model <id> (default google/gemini-3.1-flash-image) ·
 // --sizes <name:WxH,…> (default ig:1080x1350,x:1600x900,pin:1000x1500) · --collection <name> (default product-scenes) ·
 // --dry-run (price only, spend nothing). IMAGESTEP_BASE_URL points it at another API host.
 import { readFile } from "node:fs/promises";
@@ -17,7 +17,7 @@ const refs = (args.refs || "")
   .map((s) => s.trim())
   .filter(Boolean);
 const slug = args.preset || "product-scenes";
-const model = args.model || "google/gemini-3.1-flash-image-preview";
+const model = args.model || "google/gemini-3.1-flash-image";
 const collection = args.collection || "product-scenes";
 const descriptor = (args.describe || "").trim();
 const sizes = String(args.sizes || "ig:1080x1350,x:1600x900,pin:1000x1500")

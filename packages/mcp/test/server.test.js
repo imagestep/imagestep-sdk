@@ -177,16 +177,14 @@ describe("the op enum is the catalogue's, not this package's", () => {
     };
     const generate = {
       ...op("generate", "ai", false),
-      pricing: { basis: "per_item", defaultModel: { id: "google/gemini-3.1-flash-image-preview", priceFrom: "0.0844" } }
+      pricing: { basis: "per_item", defaultModel: { id: "google/gemini-3.1-flash-image", priceFrom: "0.0844" } }
     };
     const mcp = await connectWithCatalogue(async () => [op("resize", "deterministic"), removeBg, generate]);
     const { tools } = await mcp.listTools();
 
     expect(tools.find((t) => t.name === "transform").description).toContain("remove_bg $0.0233/item on fal-ai/bria/background/remove");
     // `generate` takes no image, so it is not a transform op — but its price still reaches the generate tool.
-    expect(tools.find((t) => t.name === "generate").description).toContain(
-      "generate $0.0844/item on google/gemini-3.1-flash-image-preview"
-    );
+    expect(tools.find((t) => t.name === "generate").description).toContain("generate $0.0844/item on google/gemini-3.1-flash-image");
     expect(tools.find((t) => t.name === "transform").description).not.toContain("see the estimate");
 
     const bare = await connectWithCatalogue(async () => [op("resize", "deterministic"), op("remove_bg", "ai")]);
