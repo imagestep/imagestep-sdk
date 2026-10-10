@@ -126,13 +126,13 @@ this row exists. Full text: §5.4.
 
 ## 3. The five published packages
 
-| Package               | Registry | Redistributes                                                                                                                       |
-| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `imagestep`           | npm      | nothing — zero runtime dependencies                                                                                                 |
-| `n8n-nodes-imagestep` | npm      | nothing — zero runtime dependencies, by design (the n8n Creator Portal reviews the tree)                                            |
-| `@imagestep/mcp`      | npm      | `@modelcontextprotocol/sdk` 1.30.1 (MIT — © 2024 Anthropic, PBC) · `zod` 4.6.x (MIT — © 2025 Colin McDonnell) · `imagestep` (ours)  |
-| `imagestep-cli`       | npm      | nine runtime dependencies — §3.1                                                                                                    |
-| `imagestep`           | PyPI     | `httpx` ≥ 0.27 (BSD-3-Clause — © 2019 Encode OSS Ltd) — §5.5                                                                        |
+| Package               | Registry | Redistributes                                                                                                                      |
+| --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `imagestep`           | npm      | nothing — zero runtime dependencies                                                                                                |
+| `n8n-nodes-imagestep` | npm      | nothing — zero runtime dependencies, by design (the n8n Creator Portal reviews the tree)                                           |
+| `@imagestep/mcp`      | npm      | `@modelcontextprotocol/sdk` 1.31.0 (MIT — © 2024 Anthropic, PBC) · `zod` 4.6.x (MIT — © 2025 Colin McDonnell) · `imagestep` (ours) |
+| `imagestep-cli`       | npm      | nine runtime dependencies — §3.1                                                                                                   |
+| `imagestep`           | PyPI     | `httpx` ≥ 0.27 (BSD-3-Clause — © 2019 Encode OSS Ltd) — §5.5                                                                       |
 
 The two npm packages that redistribute nothing still carry this file, because
 "nothing today" is a fact about a version, not about the package.
@@ -153,7 +153,7 @@ bundles nothing, so npm fetches each of these because our manifest asks for it.
 
 | Package                                                        | Version | Licence                                        |
 | -------------------------------------------------------------- | ------- | ---------------------------------------------- |
-| [chalk](https://github.com/chalk/chalk)                        | 6.0.0   | MIT — © Sindre Sorhus                          |
+| [chalk](https://github.com/chalk/chalk)                        | 6.0.1   | MIT — © Sindre Sorhus                          |
 | [cli-highlight](https://github.com/felixfbecker/cli-highlight) | 2.1.11  | ISC — © 2016 Felix Frederick Becker — §5.1     |
 | [cli-table3](https://github.com/cli-table/cli-table3)          | 0.6.5   | MIT — © 2014 James Talmage                     |
 | [commander](https://github.com/tj/commander.js)                | 15.0.0  | MIT — © 2011 TJ Holowaychuk                    |

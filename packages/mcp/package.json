@@ -28,14 +28,14 @@
     "eval": "node eval/run.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "imagestep": "workspace:*",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
-    "@vitest/coverage-v8": "^5.0.1",
-    "vitest": "^5.0.1"
+    "@vitest/coverage-v8": "^5.0.2",
+    "vitest": "^5.0.2"
   },
   "repository": {
     "type": "git",
