@@ -534,9 +534,14 @@ const filePathsSchema = z
   .describe("Local files to upload first (only when the server runs on your machine over stdio).");
 const urlsSchema = z.array(z.url()).max(100).optional().describe("Public http(s) image URLs to ingest first.");
 
-/** The one place a client is constructed, so both entry points below build the same one. */
+/**
+ * The one place a client is constructed, so both entry points below build the same one. It names this server in its
+ * User-Agent (imagestep#722) — `imagestep-mcp/<version>`, with the transport in the comment when the caller says
+ * (`stdio` from bin/, `hosted` from src/http.js) — so the service's log tells it from a script on the JS SDK.
+ */
 function clientFor(options) {
-  return options.client || new ImageStep({ apiKey: options.apiKey, baseUrl: options.baseUrl, fetch: options.fetch });
+  const userAgent = `imagestep-mcp/${version}${options.transport ? ` (${options.transport})` : ""}`;
+  return options.client || new ImageStep({ apiKey: options.apiKey, baseUrl: options.baseUrl, fetch: options.fetch, userAgent });
 }
 
 /**
@@ -550,8 +555,9 @@ function clientFor(options) {
  * `maxWaitSeconds` caps how long a write tool holds the call open — the hosted transport sets it (src/http.js, #275).
  * `drain` is the hosted server's shutdown (#632): when it aborts, a call still waiting for its job answers at once with
  * the handle, as a wait that ran out does, instead of being cut when the process exits.
+ * `transport` (`stdio` / `hosted`) rides in the client's User-Agent (#722).
  *
- * @param {{ apiKey: string, baseUrl?: string, fetch?: typeof fetch, allowLocalFiles?: boolean, client?: ImageStep, catalogue?: object[], maxWaitSeconds?: number, drain?: AbortSignal }} options
+ * @param {{ apiKey: string, baseUrl?: string, fetch?: typeof fetch, allowLocalFiles?: boolean, client?: ImageStep, catalogue?: object[], maxWaitSeconds?: number, drain?: AbortSignal, transport?: "stdio" | "hosted" }} options
  */
 export function createServer(options) {
   const client = clientFor(options);

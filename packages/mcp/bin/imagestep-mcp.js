@@ -41,11 +41,13 @@ if (args.includes("--http")) {
 } else {
   const apiKey = process.env.IMAGESTEP_API_KEY;
   if (!apiKey) {
-    console.error("imagestep-mcp: set IMAGESTEP_API_KEY (create one at https://imagestep.dev/keys)");
+    console.error(
+      "imagestep-mcp: set IMAGESTEP_API_KEY (create one at https://imagestep.dev/keys?utm_source=terminal&utm_medium=mcp-error)"
+    );
     process.exit(2);
   }
   // The op list in the tool schema is read from GET /api/v1/ops once, here (#94); if that fails the
   // built-in list stands in and the tool description says so.
-  const server = await createServerWithCatalogue({ apiKey, baseUrl, allowLocalFiles: true });
+  const server = await createServerWithCatalogue({ apiKey, baseUrl, allowLocalFiles: true, transport: "stdio" });
   await server.connect(new StdioServerTransport());
 }

@@ -1133,6 +1133,53 @@ describe("hosted wait cap (#275)", () => {
 });
 
 /**
+ * #722 — the service logs each API-key call's User-Agent. This server used to send the JS SDK's own, so its calls read
+ * as any script's; now it names itself, and which transport it runs on.
+ */
+describe("the User-Agent", () => {
+  const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  function recording(agents) {
+    return async (url, init) => {
+      agents.push(init.headers["User-Agent"]);
+      return new Response(JSON.stringify({ success: true, data: [{ op: "resize", kind: "deterministic", requiresAssets: true }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+  }
+
+  it("is imagestep-mcp/<version>, with the transport the entry point names", async () => {
+    clearCatalogueCache();
+    const agents = [];
+    await createServerWithCatalogue({
+      apiKey: "k",
+      baseUrl: `https://ua${Math.random()}.test`,
+      fetch: recording(agents),
+      transport: "stdio"
+    });
+    await createServerWithCatalogue({ apiKey: "k", baseUrl: `https://ua${Math.random()}.test`, fetch: recording(agents) });
+    expect(agents).toEqual([`imagestep-mcp/${version} (stdio)`, `imagestep-mcp/${version}`]);
+  });
+
+  it("says hosted on every per-request server serveHttp builds", async () => {
+    clearCatalogueCache();
+    const agents = [];
+    const http = serveHttp({ port: 0, host: "127.0.0.1", baseUrl: `https://ua${Math.random()}.test`, fetch: recording(agents) });
+    try {
+      await new Promise((r) => (http.listening ? r() : http.once("listening", r)));
+      await fetch(`http://127.0.0.1:${http.address().port}/mcp`, {
+        method: "POST",
+        headers: { authorization: "Bearer is_sk_t", "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+      });
+      expect(agents).toEqual([`imagestep-mcp/${version} (hosted)`]);
+    } finally {
+      await new Promise((r) => http.close(r));
+    }
+  });
+});
+
+/**
  * #632 — a hosted call waits up to 90 s for its job, and a shutdown gives the calls in flight 25 s. A call cut there
  * left the agent with no job id, and its retry was a second job and a second charge. When the server drains, a call
  * still waiting answers at once with the handle; and the submit — the one request it must not cut, because until it

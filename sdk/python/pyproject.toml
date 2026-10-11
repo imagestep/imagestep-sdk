@@ -37,10 +37,10 @@ dependencies = ["httpx>=0.27"]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [project.urls]
-Homepage = "https://imagestep.dev"
-Documentation = "https://imagestep.dev/docs"
+Homepage = "https://imagestep.dev/?utm_source=pypi&utm_medium=sdk-package"
+Documentation = "https://imagestep.dev/docs?utm_source=pypi&utm_medium=sdk-package"
 Repository = "https://github.com/imagestep/imagestep-sdk"
-Issues = "https://imagestep.dev/support"
+Issues = "https://imagestep.dev/support?utm_source=pypi&utm_medium=sdk-package"
 
 [tool.hatch.version]
 path = "imagestep/__init__.py"

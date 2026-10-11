@@ -86,5 +86,5 @@ for await (const asset of client.assets.iterate({ collection: "shoot-01" })) {
 `assets.iterate` · `assets.iterateCollections` · `jobs.iterate` · `jobs.iterateItems(id)` · `templates.iterate` ·
 `webhooks.iterateDeliveries(id)` · `agent.iterateReports`. Pass `cursor` (or `page`) to resume a walk.
 
-Every signature, parameter and return shape: **<https://imagestep.dev/docs/sdk>** — one reference for
+Every signature, parameter and return shape: **<https://imagestep.dev/docs/sdk?utm_source=npm&utm_medium=sdk-readme>** — one reference for
 both SDKs, held against these sources by a test.

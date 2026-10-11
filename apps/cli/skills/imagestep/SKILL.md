@@ -20,7 +20,7 @@ or a script worth keeping, use the CLI.
    `npx imagestep-cli --version`, or install it with `pnpm add -g imagestep-cli` (Node ≥ 22.19).
 2. **The key.** Export `IMAGESTEP_API_KEY=is_sk_…`; the environment wins over any stored config and
    nothing is written to disk. **Do not run `imagestep login` yourself** — it opens a browser and
-   waits for a person. Ask the human for a key (they create one at https://imagestep.dev/keys or
+   waits for a person. Ask the human for a key (they create one at https://imagestep.dev/keys?utm_source=agent&utm_medium=skill or
    run `imagestep login` in their own terminal), then continue.
 3. **The vocabulary.** `imagestep ops list -o json` — no key needed. Every entry carries `op`, `kind`
    (`ai`, `deterministic` or `sync`), `params` (the whole parameter contract), `pricing` (an AI
@@ -142,11 +142,11 @@ ImageStep's fault, and tell the human — do not switch models or resend until s
 The REST API is the same thing without the binary: `GET https://api.imagestep.dev/api/v1/ops` (no
 key) is the catalogue, `POST /api/v1/jobs?dryRun=true` is the price, the same body without `dryRun`
 is the job, `GET /api/v1/jobs/{id}` is the status. Errors carry the same `retryable`. Reference:
-https://imagestep.dev/docs/api.
+https://imagestep.dev/docs/api?utm_source=agent&utm_medium=skill.
 
 ## Reference
 
-- CLI: https://imagestep.dev/docs/cli · REST: https://imagestep.dev/docs/api
-- Synchronous face: https://imagestep.dev/docs/sync
-- MCP: https://imagestep.dev/docs/mcp · n8n node: https://imagestep.dev/docs/n8n
-- Prices: https://imagestep.dev/pricing
+- CLI: https://imagestep.dev/docs/cli?utm_source=agent&utm_medium=skill · REST: https://imagestep.dev/docs/api?utm_source=agent&utm_medium=skill
+- Synchronous face: https://imagestep.dev/docs/sync?utm_source=agent&utm_medium=skill
+- MCP: https://imagestep.dev/docs/mcp?utm_source=agent&utm_medium=skill · n8n node: https://imagestep.dev/docs/n8n?utm_source=agent&utm_medium=skill
+- Prices: https://imagestep.dev/pricing?utm_source=agent&utm_medium=skill

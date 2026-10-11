@@ -763,6 +763,25 @@ class AssetBatchUpdateRequest(TypedDict, total=False):
     """
 
 
+class AssetError(TypedDict, total=False):
+    """
+    Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed
+    """
+
+    code: str
+    """
+    An `ErrorCode`, as in an API error
+    """
+    message: str
+    """
+    What was wrong, in the decoder's words when the file is the problem
+    """
+    retryable: bool
+    """
+    Whether uploading the same file again could succeed
+    """
+
+
 class AssetImage(TypedDict, total=False):
     """
     What an asset is, as ingest measured it: type, pixel size, bytes, SHA-1, and the facts a caller would otherwise download the image to learn. A derived fact is absent when it could not be derived
@@ -865,6 +884,10 @@ class AssetStatus(TypedDict, total=False):
     One asset's ingest state
     """
 
+    error: AssetError
+    """
+    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
+    """
     height: int
     """
     Pixel height, once ingest has measured it
@@ -959,11 +982,34 @@ class PreviewUrlsRequest(TypedDict, total=False):
     """
 
 
+class Error(TypedDict, total=False):
+    """
+    Why ingest failed — on FAILED only (imagestep#734)
+    """
+
+    code: str
+    """
+    An `ErrorCode`, as in an API error
+    """
+    message: str
+    """
+    What was wrong, in the decoder's words when the file is the problem
+    """
+    retryable: bool
+    """
+    Whether uploading the same file again could succeed
+    """
+
+
 class PreviewUrl(TypedDict, total=False):
     """
     One asset's preview: a signed URL for its small rendition when it exists, plus enough state to know why it does not yet
     """
 
+    error: Error
+    """
+    Why ingest failed — on FAILED only (imagestep#734)
+    """
     expiresAt: int | None
     """
     When `url` stops working, epoch millis; absent when `url` is
@@ -982,7 +1028,7 @@ class PreviewUrl(TypedDict, total=False):
     """
     url: str | None
     """
-    Signed URL for the preview, a 400 px wide WebP; absent while ingest is still running or after it failed
+    Signed URL for the preview, a WebP at most 400 px wide; absent while ingest is still running or after it failed
     """
     width: int | None
     """
@@ -1062,7 +1108,7 @@ class FinishUploadRequest(TypedDict, total=False):
     """
     name: Required[str]
     """
-    The file's name; its extension decides the type
+    The file's name; its extension decides the type, and the asset is named after its stem, cut to 200 characters
     """
     objectId: Required[str]
     """
@@ -1552,6 +1598,10 @@ class AssetSummary(TypedDict, total=False):
     """
     Epoch millis; the list is ordered by it, newest first
     """
+    error: AssetError
+    """
+    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
+    """
     expiresAt: int
     """
     Epoch millis when the asset and its objects are deleted
@@ -1570,7 +1620,7 @@ class AssetSummary(TypedDict, total=False):
     """
     name: str
     """
-    Display name — an upload's file name without its extension
+    Display name — an upload's file name without its extension, cut to 200 characters
     """
     publicUrl: str
     """
@@ -3041,6 +3091,7 @@ class Asset(TypedDict, total=False):
     """
     Epoch millis; the library is listed newest-created first
     """
+    error: AssetError
     expiresAt: int
     """
     Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created
@@ -3063,7 +3114,7 @@ class Asset(TypedDict, total=False):
     """
     name: str
     """
-    Display name — an upload's file name without its extension. Not unique; `id` is what addresses the asset
+    Display name — an upload's file name without its extension, cut to 200 characters. Not unique; `id` is what addresses the asset
     """
     publicUrl: str
     """
@@ -3087,7 +3138,7 @@ class Asset(TypedDict, total=False):
     """
     takenAt: int
     """
-    When the picture was taken, epoch millis — metadata.DateTimeOriginal, and what takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
+    When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
     """
     updatedAt: int
     """

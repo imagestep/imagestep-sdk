@@ -38,7 +38,7 @@ dependency that never reaches the browser belongs in §4, not here.
 | ---------------------------------------------------------------- | ------- | ------------------------------------------------- |
 | [react](https://github.com/facebook/react)                       | 19.3.0  | MIT — © Meta Platforms, Inc. and affiliates       |
 | [react-dom](https://github.com/facebook/react)                   | 19.3.0  | MIT — © Meta Platforms, Inc. and affiliates       |
-| [next](https://github.com/vercel/next.js)                        | 16.3.6  | MIT — © 2025 Vercel, Inc.                         |
+| [next](https://github.com/vercel/next.js)                        | 16.3.8  | MIT — © 2025 Vercel, Inc.                         |
 | [radix-ui](https://github.com/radix-ui/primitives)               | 1.6.7   | MIT — © 2022 WorkOS                               |
 | [lucide-react](https://github.com/lucide-icons/lucide)           | 1.48.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
 | [class-variance-authority](https://github.com/joe-bell/cva)      | 0.7.1   | Apache-2.0 — §5.2                                 |
@@ -47,7 +47,7 @@ dependency that never reaches the browser belongs in §4, not here.
 | [sonner](https://github.com/emilkowalski/sonner)                 | 2.0.8   | MIT — © 2023 Emil Kowalski                        |
 | [next-themes](https://github.com/pacocoursey/next-themes)        | 0.4.6   | MIT — © 2022 Paco Coursey                         |
 | [react-virtuoso](https://github.com/petyosi/react-virtuoso)      | 4.18.15 | MIT — © 2020 Petyo Ivanov                         |
-| [@virtuoso.dev/masonry](https://github.com/virtuoso-dev/masonry) | 1.4.3   | MIT — © Petyo Ivanov                              |
+| [@virtuoso.dev/masonry](https://github.com/petyosi/react-virtuoso/tree/master/packages/masonry) | 1.4.3   | MIT — © Petyo Ivanov                              |
 | [minisearch](https://github.com/lucaong/minisearch)              | 7.2.0   | MIT — © 2022 Luca Ongaro                          |
 | [fflate](https://github.com/101arrowz/fflate)                     | 0.8.3   | MIT — © 2026 Arjun Barrett                        |
 

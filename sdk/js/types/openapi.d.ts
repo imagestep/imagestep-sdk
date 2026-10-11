@@ -358,7 +358,7 @@ export interface paths {
         put?: never;
         /**
          * Sign preview URLs for a page of assets
-         * @description Signs URLs for the `preview` renditions (400 px wide WebP) of up to 100 of your assets in one
+         * @description Signs URLs for the `preview` renditions (WebPs at most 400 px wide) of up to 100 of your assets in one
          *     call, each valid for 15 minutes (`ttlSeconds`), and reports each asset's ingest status
          *     alongside. IDs that are not yours are left out rather than reported. A read that is a POST only
          *     because a page of ids does not fit a query string, so it takes no Idempotency-Key — a replay would
@@ -432,7 +432,8 @@ export interface paths {
          * Poll the ingest status of up to 100 assets
          * @description Where a batch of your assets is in ingest, in one call — the poll after an upload or a URL
          *     ingest, instead of GET /api/v1/assets/{id} per asset per tick. PROCESSING is still running;
-         *     DONE and FAILED are final. `width` and `height` appear once ingest has measured them.
+         *     DONE and FAILED are final. `width` and `height` appear once ingest has measured them; a FAILED
+         *     asset carries `error` — `retryable: false` means the file itself cannot be read.
          *
          *     Nothing is signed and nothing is written to the audit log: the answer is your own assets'
          *     progress, and IDs that are not yours are absent rather than reported. A POST only because a
@@ -2402,6 +2403,7 @@ export interface components {
              * @description Epoch millis; the library is listed newest-created first
              */
             createdAt?: number;
+            error?: components["schemas"]["AssetError"];
             /**
              * Format: int64
              * @description Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created
@@ -2417,7 +2419,7 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
-            /** @description Display name — an upload's file name without its extension. Not unique; `id` is what addresses the asset */
+            /** @description Display name — an upload's file name without its extension, cut to 200 characters. Not unique; `id` is what addresses the asset */
             name?: string;
             /** @description The CDN URL of the full-size image, once published; absent otherwise. Unpublishing or deleting takes it down within about two minutes */
             readonly publicUrl?: string;
@@ -2437,7 +2439,7 @@ export interface components {
             tags?: string[];
             /**
              * Format: int64
-             * @description When the picture was taken, epoch millis — metadata.DateTimeOriginal, and what takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
+             * @description When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
              */
             takenAt?: number;
             /**
@@ -2488,6 +2490,18 @@ export interface components {
              *     ]
              */
             tags?: string[];
+        };
+        /** @description Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed */
+        AssetError: {
+            /**
+             * @description An `ErrorCode`, as in an API error
+             * @example unsupported_format
+             */
+            code?: string;
+            /** @description What was wrong, in the decoder's words when the file is the problem */
+            message?: string;
+            /** @description Whether uploading the same file again could succeed */
+            retryable?: boolean;
         };
         /** @description What an asset is, as ingest measured it: type, pixel size, bytes, SHA-1, and the facts a caller would otherwise download the image to learn. A derived fact is absent when it could not be derived */
         AssetImage: {
@@ -2576,6 +2590,8 @@ export interface components {
         };
         /** @description One asset's ingest state */
         AssetStatus: {
+            /** @description Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed */
+            error?: components["schemas"]["AssetError"];
             /**
              * Format: int32
              * @description Pixel height, once ingest has measured it
@@ -2613,6 +2629,8 @@ export interface components {
              * @description Epoch millis; the list is ordered by it, newest first
              */
             createdAt?: number;
+            /** @description Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed */
+            error?: components["schemas"]["AssetError"];
             /**
              * Format: int64
              * @description Epoch millis when the asset and its objects are deleted
@@ -2627,7 +2645,7 @@ export interface components {
             id?: string;
             /** @description image.mimeType */
             mimeType?: string;
-            /** @description Display name — an upload's file name without its extension */
+            /** @description Display name — an upload's file name without its extension, cut to 200 characters */
             name?: string;
             /** @description The CDN URL once published */
             publicUrl?: string;
@@ -2838,7 +2856,7 @@ export interface components {
              */
             collection?: string;
             /**
-             * @description The file's name; its extension decides the type
+             * @description The file's name; its extension decides the type, and the asset is named after its stem, cut to 200 characters
              * @example vacation-photo.jpg
              */
             name: string;
@@ -3840,6 +3858,8 @@ export interface components {
         };
         /** @description One asset's preview: a signed URL for its small rendition when it exists, plus enough state to know why it does not yet */
         PreviewUrl: {
+            /** @description Why ingest failed — on FAILED only (imagestep#734) */
+            error?: components["schemas"]["AssetError"];
             /**
              * Format: int64
              * @description When `url` stops working, epoch millis; absent when `url` is
@@ -3857,7 +3877,7 @@ export interface components {
              * @enum {string}
              */
             status?: "PROCESSING" | "DONE" | "FAILED";
-            /** @description Signed URL for the preview, a 400 px wide WebP; absent while ingest is still running or after it failed */
+            /** @description Signed URL for the preview, a WebP at most 400 px wide; absent while ingest is still running or after it failed */
             url?: string | null;
             /**
              * Format: int32
@@ -4441,7 +4461,7 @@ export interface operations {
                 /** @description One of your tags, matched exactly (case included) against the tags you set on upload or with POST /api/v1/assets/update */
                 tag?: string;
                 /**
-                 * @description Capture date lower bound (EXIF DateTimeOriginal, the asset's takenAt). Epoch millis, or an ISO-8601 date or instant read as UTC: 2026-09-14, 2026-09-14T08:30:00Z. An image that records no capture date never matches a capture bound
+                 * @description Capture date lower bound — the asset's takenAt, its capture time: DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). Epoch millis, or an ISO-8601 date or instant read as UTC: 2026-09-14, 2026-09-14T08:30:00Z. An image that records no capture date never matches a capture bound
                  * @example 2026-09-14
                  */
                 takenFrom?: string;
@@ -4650,7 +4670,7 @@ export interface operations {
     getAssetContent: {
         parameters: {
             query?: {
-                /** @description Which stored form to download: readable (default; the image at full size in a type a browser shows — for HEIF, RAW, PSD and the like a rendition ingest writes, the original until it has), original (the bytes as uploaded or produced) or preview (a 400 px wide WebP) */
+                /** @description Which stored form to download: readable (default; the image at full size in a type a browser shows — for HEIF, RAW, PSD and the like a rendition ingest writes, the original until it has), original (the bytes as uploaded or produced) or preview (a WebP at most 400 px wide) */
                 variant?: "readable" | "original" | "preview";
             };
             header?: never;
@@ -5427,6 +5447,7 @@ export interface operations {
             /**
              * @description - `invalid_param` on `ids` — missing, empty, or longer than 10000
              *     - `invalid_param` on `collection` or `tags` — over a limit, a control character, or a collection starting with `job:`
+             *     - `invalid_state` on `published` — `true` for an asset whose ingest FAILED: it holds no image to publish. `details.failed` lists them, and nothing in the request is written
              */
             400: {
                 headers: {
@@ -5479,7 +5500,7 @@ export interface operations {
             query?: {
                 /** @description Collection to put the new asset in (optional; at most 200 characters, and names starting with job: are reserved). Ignored when the bytes match an asset you already hold */
                 collection?: string;
-                /** @description File name. Its extension types the bytes when Content-Type does not; the asset is named after its stem. Defaults to the multipart file name, else `image`. */
+                /** @description File name. Its extension types the bytes when Content-Type does not; the asset is named after its stem, cut to 200 characters. Defaults to the multipart file name, else `image`. */
                 name?: string;
                 /** @description Keep the new asset this many days instead of your plan's retention — shorter only; more is kept for the plan's time (imagestep#591). Its `expiresAt` says what was stamped. */
                 retentionDays?: number;
@@ -6184,9 +6205,9 @@ export interface operations {
                 preset?: string;
                 /** @description Every attempt of one job: the ones whose `rootJobId` is this — the first attempt's id, which is its own `rootJobId` too, so it is in the page. Ordered newest first like any other page, so the latest attempt is first. */
                 rootJobId?: string;
-                /** @description Only jobs in this status */
+                /** @description Only jobs in this status (either case); any other value is `400 invalid_param` */
                 status?: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CANCELLING";
-                /** @description Only jobs of this type */
+                /** @description Only jobs of this type (either case); any other value is `400 invalid_param` */
                 type?: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
             };
             header?: never;
@@ -6212,7 +6233,7 @@ export interface operations {
                     "*/*": components["schemas"]["ApiResponseListJobSummary"];
                 };
             };
-            /** @description `invalid_param` on `createdFrom` / `createdTo` — neither epoch milliseconds nor an ISO-8601 date or instant */
+            /** @description `invalid_param` on `status` / `type` — not one of its values, which `details.allowed` lists (either case is taken); on `createdFrom` / `createdTo` — neither epoch milliseconds nor an ISO-8601 date or instant */
             400: {
                 headers: {
                     /** @description Requests allowed in the current window */

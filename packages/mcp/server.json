@@ -3,7 +3,7 @@
   "name": "dev.imagestep/mcp",
   "title": "ImageStep",
   "description": "The image pipeline for agents: presets, assets and jobs. Answers with asset ids and stable URLs.",
-  "websiteUrl": "https://imagestep.dev/docs/mcp",
+  "websiteUrl": "https://imagestep.dev/docs/mcp?utm_source=mcp-registry&utm_medium=registry-entry",
   "repository": {
     "url": "https://github.com/imagestep/imagestep-sdk",
     "source": "github",
@@ -21,7 +21,7 @@
       "environmentVariables": [
         {
           "name": "IMAGESTEP_API_KEY",
-          "description": "An ImageStep API key, created at https://imagestep.dev/keys",
+          "description": "An ImageStep API key, created at https://imagestep.dev/keys?utm_source=mcp-registry&utm_medium=registry-entry",
           "isRequired": true,
           "isSecret": true,
           "format": "string"
@@ -36,7 +36,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer followed by an ImageStep API key, created at https://imagestep.dev/keys",
+          "description": "Bearer followed by an ImageStep API key, created at https://imagestep.dev/keys?utm_source=mcp-registry&utm_medium=registry-entry",
           "isRequired": true,
           "isSecret": true
         }

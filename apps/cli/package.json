@@ -32,9 +32,9 @@
     "url": "git+https://github.com/imagestep/imagestep-sdk.git",
     "directory": "apps/cli"
   },
-  "homepage": "https://imagestep.dev/docs",
+  "homepage": "https://imagestep.dev/docs?utm_source=npm&utm_medium=cli-package",
   "bugs": {
-    "url": "https://imagestep.dev/support"
+    "url": "https://imagestep.dev/support?utm_source=npm&utm_medium=cli-package"
   },
   "publishConfig": {
     "access": "public",

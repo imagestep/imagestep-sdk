@@ -205,8 +205,9 @@ export interface AssetListParams {
   minHeight?: number;
   maxHeight?: number;
   /**
-   * Capture-date bounds (EXIF DateTimeOriginal), as epoch millis or an ISO-8601 date read in UTC; a bare date
-   * as an upper bound covers the whole of that day (imagestep#429).
+   * Capture-date bounds (the asset's `takenAt` — DateTimeOriginal, else CreateDate, else GPSDateTime in UTC), as
+   * epoch millis or an ISO-8601 date read in UTC; a bare date as an upper bound covers the whole of that day
+   * (imagestep#429).
    */
   takenFrom?: number | string;
   takenTo?: number | string;

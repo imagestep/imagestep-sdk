@@ -1124,8 +1124,8 @@ class Assets:
     def download(self, asset_id: str, *, variant: str = "readable") -> bytes:
         """The asset's private bytes (#233). `GET /assets/{id}/content` answers a redirect to a short-lived signed
         URL; it is followed here WITHOUT the API key — the URL carries its own signature. `variant` is readable
-        (full size, in a type a browser shows), original (the bytes as uploaded or produced) or preview (a 400 px
-        wide WebP). Both requests are retried like any other (#567)."""
+        (full size, in a type a browser shows), original (the bytes as uploaded or produced) or preview (a WebP at
+        most 400 px wide). Both requests are retried like any other (#567)."""
         core = self._client._core
         url, headers, _ = core.prepare("GET", f"/api/v1/assets/{asset_id}/content{_query({'variant': variant})}", None, None, None)
         response = self._client._request_raw("GET", url, headers=headers)

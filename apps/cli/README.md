@@ -1,14 +1,14 @@
 # ImageStep CLI (`imagestep-cli`)
 
-The command-line client for [ImageStep](https://imagestep.dev): transform images synchronously
+The command-line client for [ImageStep](https://imagestep.dev/?utm_source=npm&utm_medium=cli-readme): transform images synchronously
 from the terminal, upload assets and sort them into collections, submit and follow jobs, manage presets and
 models. It talks to ImageStep only through the public REST API, and **every call goes through the JS SDK**
 ([`imagestep`](https://www.npmjs.com/package/imagestep)): its timeouts, retries, Idempotency-Keys, pagination, job wait
 and error type are this CLI's; the CLI adds only where the key and base URL come from and the `User-Agent`
 (`imagestep-cli/<version>`).
 
-Documentation: [imagestep.dev/docs/cli](https://imagestep.dev/docs/cli) · API reference:
-[imagestep.dev/docs/api](https://imagestep.dev/docs/api).
+Documentation: [imagestep.dev/docs/cli](https://imagestep.dev/docs/cli?utm_source=npm&utm_medium=cli-readme) · API reference:
+[imagestep.dev/docs/api](https://imagestep.dev/docs/api?utm_source=npm&utm_medium=cli-readme).
 
 ---
 
@@ -63,7 +63,7 @@ ten ports — the console refuses any other.
 | | |
 |---|---|
 | When a key is already stored | It is probed once with `GET /api/v1/ai-models?mode=ai_image` and reused if it works; `-f, --force` skips the reuse and always issues a new one |
-| API host | `https://api.imagestep.dev`, sign-in at `https://imagestep.dev`. `IMAGESTEP_BASE_URL` points the CLI at another host |
+| API host | `https://api.imagestep.dev`, sign-in at [imagestep.dev](https://imagestep.dev/?utm_source=npm&utm_medium=cli-readme). `IMAGESTEP_BASE_URL` points the CLI at another host |
 | Config file | `~/.imagestep/config.yml`, exactly two keys: `env` (`prod` / `local`, default `prod`) and `tokens: { prod?, local? }`. Owner-only: the directory 0700, the file 0600; one found wider (an older CLI under a 022 umask) is narrowed on the next read, with one line on stderr |
 | Environment variables | `IMAGESTEP_API_KEY` and `IMAGESTEP_BASE_URL` — the SDKs' names and precedence: **the environment wins over the config file**, and nothing is written to disk. That is the way in for CI, containers and agents with no browser: `IMAGESTEP_API_KEY=is_sk_… imagestep jobs list` works on a machine with no `~/.imagestep`. A base URL that names a preset selects it, stored key included. With the key exported, `login` says so and exits 0 without opening a browser, and `logout` **never revokes it** — it was not issued to this machine, and revoking it would break every other runner holding it; it clears only the stored keys and says the exported one is still valid. `LOG_LEVEL` (`error` · `warn` · `info` · `debug`, default `info`; every level goes to stderr) is the only other variable |
 
@@ -87,7 +87,7 @@ imagestep image metadata ./photo.dng -o table
 
 No upload, no asset, no job, no publish: the bytes go up (`POST /api/v1/images/transform` /
 `/images/metadata`, without an `Idempotency-Key` — the one documented exception, see
-[imagestep.dev/docs/sync](https://imagestep.dev/docs/sync)), the result
+[imagestep.dev/docs/sync](https://imagestep.dev/docs/sync?utm_source=npm&utm_medium=cli-readme)), the result
 comes back, and your account is exactly as it was. Every other command stores what it makes; this
 group does not.
 
@@ -166,7 +166,7 @@ One file per group under `src/commands/`. The table lists subcommands and the fl
 | `template` | The input of `render_template`: `list [-f builtin\|user]` · `get <id\|id@version>` · `versions <id>` · `create [-f <doc.json>] [--name --html <s\|@file> --css <s\|@file> --width --height --variables a,b --slug]` (takes the shape `get -o json` prints; the ids, slug and version the service assigns are dropped) · `update <id> [-f] [flags]` (a new version; what you leave out carries over) · `delete <id> [-y]` · `import <file>`. Built-ins (`builtin-template-*`) are read-only — PUT / DELETE answer 403 |
 | `models` | `list [-m ai_image\|analyze]` (default `ai_image`) |
 | `ops` | **No login needed** (`GET /api/v1/ops` is public): `list` (op · kind · job type · ✓ when it also runs on the sync lane · pricing basis · price) · `get <op>` (the full entry — parameter contract and pricing; `-o table` prints one parameter per row) |
-| `webhook` | Register a URL and stop polling ([imagestep.dev/docs/webhooks](https://imagestep.dev/docs/webhooks)): `list` (secret masked as `secretHint`) · `get <id>` · `create --url <https://…> [--events a,b] [--description]` · `update <id> [--url] [--events] [--description] [--enable\|--disable]` (`--enable` is the way back after an automatic disable) · `delete <id> [-y]` · `rotate-secret <id>` · `test <id>` (a synthetic `webhook.test` delivery now; exit 1 unless `DELIVERED`) · `deliveries <id> [-p] [-s]` (attempts, receiver status, error, next retry — where to look when an event did not arrive). **The signing secret is printed only by `create` and `rotate-secret`, once**; loopback and private-address URLs are refused by the service |
+| `webhook` | Register a URL and stop polling ([imagestep.dev/docs/webhooks](https://imagestep.dev/docs/webhooks?utm_source=npm&utm_medium=cli-readme)): `list` (secret masked as `secretHint`) · `get <id>` · `create --url <https://…> [--events a,b] [--description]` · `update <id> [--url] [--events] [--description] [--enable\|--disable]` (`--enable` is the way back after an automatic disable) · `delete <id> [-y]` · `rotate-secret <id>` · `test <id>` (a synthetic `webhook.test` delivery now; exit 1 unless `DELIVERED`) · `deliveries <id> [-p] [-s]` (attempts, receiver status, error, next retry — where to look when an event did not arrive). **The signing secret is printed only by `create` and `rotate-secret`, once**; loopback and private-address URLs are refused by the service |
 | `feedback` | The channel for a gap you hit: `send --kind capability_gap\|bug\|other -m <text\|@file> [--op <name>] [--context <json>]` (`POST /api/v1/feedback`) · `list [-p] [-s]` (what this account reported, newest first) |
 | `guidelines` | Prints the agent operating contract (`GET /api/v1/agent-guidelines`, Markdown; `-o json` for the document). **No login needed** |
 | `skill` | Prints the agent skill this CLI ships (`skills/imagestep/SKILL.md`, the same bytes the console serves at `/.well-known/agent-skills/imagestep/SKILL.md`); `--install claude-code` writes it to `~/.claude/skills/imagestep/SKILL.md` — the one install target. **No login needed** |
@@ -192,7 +192,7 @@ imagestep asset list --collection shoot-01 -o table
 imagestep jobs estimate --op resize --asset-ids <id>,<id> --params '{"width":1200}'
 imagestep jobs submit   --asset-ids <id>,<id> --preset-id builtin-util-web-optimize@1
 imagestep jobs submit   --op generate --count 2 -p "a red bicycle on white"
-# a recipe off https://imagestep.dev/docs/recipes, saved and run at the version it was saved at
+# a recipe off https://imagestep.dev/docs/recipes?utm_source=npm&utm_medium=cli-readme, saved and run at the version it was saved at
 imagestep preset create -f instagram-square.json
 imagestep jobs submit   --asset-ids <id> --preset-id instagram-square@1
 # three social sizes from each photo, one job (2 assets × 3 variants = 6 items in the estimate)

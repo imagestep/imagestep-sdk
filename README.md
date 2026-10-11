@@ -1,6 +1,6 @@
 # ImageStep SDK
 
-The client side of [ImageStep](https://imagestep.dev), the image step for your automations: generate, edit, remove
+The client side of [ImageStep](https://imagestep.dev/?utm_source=github&utm_medium=sdk-readme), the image step for your automations: generate, edit, remove
 backgrounds, upscale, convert and read metadata as one reliable step in your code, an n8n workflow or an AI agent.
 
 Everything that runs on your side of the API lives here:
@@ -17,12 +17,12 @@ Everything that runs on your side of the API lives here:
 The n8n community node and trigger, [`n8n-nodes-imagestep`](https://www.npmjs.com/package/n8n-nodes-imagestep), have
 a repository of their own: [imagestep/n8n-nodes-imagestep](https://github.com/imagestep/n8n-nodes-imagestep).
 
-Each directory has its own README. The documentation is at [imagestep.dev/docs](https://imagestep.dev/docs), and the
-API reference at [imagestep.dev/docs/api](https://imagestep.dev/docs/api).
+Each directory has its own README. The documentation is at [imagestep.dev/docs](https://imagestep.dev/docs?utm_source=github&utm_medium=sdk-readme), and the
+API reference at [imagestep.dev/docs/api](https://imagestep.dev/docs/api?utm_source=github&utm_medium=sdk-readme).
 
 ## Quick start
 
-Create an API key at [imagestep.dev/keys](https://imagestep.dev/keys), then:
+Create an API key at [imagestep.dev/keys](https://imagestep.dev/keys?utm_source=github&utm_medium=sdk-readme), then:
 
 ```sh
 npm install imagestep

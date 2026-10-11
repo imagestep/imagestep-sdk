@@ -164,7 +164,10 @@ assetCommand
   .option("--max-width <px>", "Pixel width upper bound")
   .option("--min-height <px>", "Pixel height lower bound")
   .option("--max-height <px>", "Pixel height upper bound")
-  .option("--taken-from <when>", "Capture date lower bound (EXIF DateTimeOriginal): 2026-09-14 or epoch millis")
+  .option(
+    "--taken-from <when>",
+    "Capture date lower bound (DateTimeOriginal, else CreateDate, else GPSDateTime): 2026-09-14 or epoch millis"
+  )
   .option("--taken-to <when>", "Capture date upper bound; a bare date covers the whole of that day")
   .option("--created-from <when>", "Only assets made or ingested since: 2026-09-14 or epoch millis")
   .option("--created-to <when>", "Only assets made or ingested before; a bare date covers the whole of that day")

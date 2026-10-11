@@ -4,6 +4,10 @@ import { constructWebhookEvent, verifyWebhookSignature } from "./webhooks.js";
 export { ImageStepError, JobFailedError, verifyWebhookSignature, constructWebhookEvent };
 
 const DEFAULT_BASE_URL = "https://api.imagestep.dev";
+// This package's version, for the default User-Agent (imagestep#722). A literal because `src/` is what an ESM import loads,
+// as is, in Node, a bundler or a browser, none of which can be relied on to read package.json; test/client.test.js holds it
+// to package.json's `version`, so a release that bumps one without the other is red.
+const VERSION = "0.1.0";
 const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 /**
@@ -483,7 +487,7 @@ export class ImageStep {
     this.fetch = options.fetch || globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.maxRetries = options.maxRetries ?? 2;
-    this.userAgent = options.userAgent || "imagestep-js/0.1.0";
+    this.userAgent = options.userAgent || `imagestep-js/${VERSION}`;
 
     this.ops = new Ops(this);
     this.images = new Images(this);
@@ -950,7 +954,7 @@ class Assets {
    * The asset's private bytes (#233). `GET /assets/{id}/content` answers a redirect to a short-lived signed URL;
    * the redirect is followed here, WITHOUT the API key — the URL carries its own signature, and storage has no
    * business seeing the key. `variant` is readable (default: full size, in a type a browser shows),
-   * original (the bytes as uploaded or produced) or preview (a 400 px wide WebP). Node (and other runtimes whose fetch
+   * original (the bytes as uploaded or produced) or preview (a WebP at most 400 px wide). Node (and other runtimes whose fetch
    * exposes a manual redirect) only: a browser hides the Location of a manual redirect. Both legs are timed and retried
    * like any request (#567).
    * @returns {Promise<{ bytes: Uint8Array, contentType: string }>}

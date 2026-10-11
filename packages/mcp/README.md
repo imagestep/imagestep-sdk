@@ -93,7 +93,7 @@ read, so a copy of this package released months ago still serves today's contrac
 
 ## Connect
 
-Get an API key at <https://imagestep.dev/keys>.
+Get an API key at <https://imagestep.dev/keys?utm_source=npm&utm_medium=mcp-readme>.
 
 **Claude Desktop** (`claude_desktop_config.json`) — local, can upload files from disk:
 

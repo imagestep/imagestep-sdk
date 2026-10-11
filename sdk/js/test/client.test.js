@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { ImageStep, ImageStepError, JobFailedError, verifyWebhookSignature, constructWebhookEvent } from "../src/index.js";
 
 function envelope(data, meta) {
@@ -23,6 +24,16 @@ describe("request contract", () => {
     expect(init.headers.Authorization).toBe("ApiKey is_sk_test");
     expect(init.headers["Idempotency-Key"]).toMatch(/[0-9a-f-]{36}/);
     expect(init.headers["Content-Type"]).toBe("application/json");
+  });
+
+  // imagestep#722: the service logs the User-Agent, so the default carries this package's real version, and a tool built
+  // on the SDK (the CLI, the MCP server) names itself instead.
+  it("sends imagestep-js/<package version> as its User-Agent, or the one it is given", async () => {
+    const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const fetchImpl = vi.fn(async () => envelope({}));
+    await client(fetchImpl).ops.list();
+    await client(fetchImpl, { userAgent: "my-tool/2.0" }).ops.list();
+    expect(fetchImpl.mock.calls.map(([, init]) => init.headers["User-Agent"])).toEqual([`imagestep-js/${version}`, "my-tool/2.0"]);
   });
 
   it("GETs carry no Idempotency-Key and list() returns items + meta", async () => {

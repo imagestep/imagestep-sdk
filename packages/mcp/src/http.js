@@ -110,6 +110,7 @@ export function serveHttp({ port = 8787, host = "127.0.0.1", allowedHosts, baseU
         baseUrl,
         fetch: fetchImpl,
         allowLocalFiles: false,
+        transport: "hosted",
         maxWaitSeconds: HOSTED_MAX_WAIT_SECONDS,
         drain
       });

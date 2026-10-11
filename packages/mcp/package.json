@@ -42,9 +42,9 @@
     "url": "git+https://github.com/imagestep/imagestep-sdk.git",
     "directory": "packages/mcp"
   },
-  "homepage": "https://imagestep.dev/docs/mcp",
+  "homepage": "https://imagestep.dev/docs/mcp?utm_source=npm&utm_medium=mcp-package",
   "bugs": {
-    "url": "https://imagestep.dev/support"
+    "url": "https://imagestep.dev/support?utm_source=npm&utm_medium=mcp-package"
   },
   "keywords": [
     "mcp",

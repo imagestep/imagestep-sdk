@@ -88,5 +88,5 @@ for asset in client.assets.iterate(collection="shoot-01"):
 `webhooks.iterate_deliveries(id)` · `agent.iterate_reports`, on both clients (`async for` on `AsyncImageStep`).
 Pass `cursor=` (or `page=`) to resume a walk.
 
-Every signature, parameter and return shape: **<https://imagestep.dev/docs/sdk>** — one reference for
+Every signature, parameter and return shape: **<https://imagestep.dev/docs/sdk?utm_source=pypi&utm_medium=sdk-readme>** — one reference for
 both SDKs, held against these sources by a test.

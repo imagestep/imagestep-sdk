@@ -7,5 +7,5 @@ contact_links:
     url: https://github.com/imagestep/n8n-nodes-imagestep/issues
     about: The n8n community node and trigger have a repository of their own.
   - name: Account, plan or billing
-    url: https://imagestep.dev/support
+    url: https://imagestep.dev/support?utm_source=github&utm_medium=issue-template
     about: Questions about your account, your plan or an invoice.
