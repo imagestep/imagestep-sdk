@@ -11,3 +11,8 @@ packages:
 # Installs and updates pick only versions published at least 7 days (10080 minutes) ago: a fresh release is where
 # supply-chain attacks land and where a broken publish sits before its fix.
 minimumReleaseAge: 10080
+
+# Dependency build scripts: pnpm 10 runs only the allowed ones and warns about any declared neither way. esbuild
+# (sdk/js's bundler): its postinstall verifies or fetches the platform binary. Nothing else in this tree has one.
+onlyBuiltDependencies:
+  - esbuild
