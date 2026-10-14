@@ -6804,7 +6804,7 @@ export interface operations {
                 };
             };
             /**
-             * @description - `job_not_resumable` — `details.reason` is `NOT_LATEST_ATTEMPT` (resume the newest attempt of this `rootJobId` instead) or `RESUME_LIMIT_EXCEEDED` (`details.job.maxResumes` reached)
+             * @description - `job_not_resumable` — `details.reason` is `NOT_LATEST_ATTEMPT` (resume the newest attempt of this `rootJobId` instead), `RESUME_LIMIT_EXCEEDED` (`details.job.maxResumes` reached) or `NOT_RETRYABLE` (every item left to retry failed with `invalid_param` or `unsupported_format`, which a resume meets again; `details.job.errorCode` is the first one's)
              *     - `asset_count_exceeded` — the retry would pass the plan's stored-asset ceiling
              */
             422: {

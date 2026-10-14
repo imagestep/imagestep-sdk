@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import http from "node:http";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { ImageStepError } from "imagestep";
@@ -122,12 +123,21 @@ describe("a transient failure", () => {
     expect(JSON.parse(result.stdout).error).toMatchObject({ code: null, retryable: true, status: 502 });
   });
 
-  it("no answer at all, once the retries are spent, is exit 4 and retryable: true — no code, no status (#566)", async () => {
-    // A port that was open a moment ago and is closed now: the connection is refused, three attempts in a row.
-    const closed = http.createServer();
-    await new Promise((resolve) => closed.listen(0, "127.0.0.1", resolve));
-    const url = `http://127.0.0.1:${closed.address().port}`;
-    await new Promise((resolve) => closed.close(resolve));
+  it("no answer at all, once the retries are spent, is exit 4 and retryable: true — no code, no status (#566)", async (ctx) => {
+    // Port 2: below 1024 and outside the ephemeral range, so no test's listen(0) is ever handed it, and nothing listens on
+    // it by default — the connection is refused, three attempts in a row. (Not port 1: fetch refuses it as a "bad port"
+    // before connecting.) Not a port that was open a moment ago (#746): in the repo-root run another
+    // test file's listen(0) can be handed that port at once, and the CLI then reaches its server and exits 3.
+    const url = "http://127.0.0.1:2";
+    const answered = await new Promise((resolve) => {
+      const probe = net.connect(2, "127.0.0.1");
+      probe.once("connect", () => {
+        probe.destroy();
+        resolve(true);
+      });
+      probe.once("error", () => resolve(false));
+    });
+    if (answered) ctx.skip("something on this machine listens on 127.0.0.1:2 — no address here is certain to refuse");
 
     const result = await run(process.execPath, [bin, "models", "list", "-o", "json"], {
       env: { ...process.env, IMAGESTEP_API_KEY: "is_sk_test", IMAGESTEP_BASE_URL: url, HOME: "/nonexistent" }
