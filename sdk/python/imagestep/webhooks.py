@@ -10,9 +10,11 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Any
-
+from ._generated import JobEvent, JobItemEvent, WebhookTestEvent
 from .errors import WebhookSignatureError
+
+# A delivery's body, generated from the API's OpenAPI document (imagestep#752): narrow it on `type` and `data` follows.
+WebhookEvent = JobEvent | JobItemEvent | WebhookTestEvent
 
 
 def parse_signature_header(header: str | None) -> tuple[int | None, str | None]:
@@ -62,8 +64,9 @@ def construct_webhook_event(
     secret: str,
     tolerance_seconds: int = 300,
     now: float | None = None,
-) -> dict[str, Any]:
-    """Verify, then parse: the event `{id, type, createdAt, data}`.
+) -> WebhookEvent:
+    """Verify, then parse: the event `{id, type, apiVersion, createdAt, data}` — a `JobEvent`, `JobItemEvent` or `WebhookTestEvent`
+    by its `type`.
 
     Raises `WebhookSignatureError` when the signature does not check out.
     """

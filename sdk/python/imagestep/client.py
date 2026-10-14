@@ -28,20 +28,32 @@ import httpx
 from . import __version__
 from ._generated import (
     Asset,
+    AssetStatus,
+    AssetSummary,
+    BatchDeleteResultDTO,
+    BatchImportResultDTOPresetData,
+    BatchImportResultDTOTemplateData,
     CollectionRenamed,
+    Feedback,
+    ImageMetadata,
     Job,
     JobEstimate,
+    JobItem,
+    JobSummary,
     ModelDTO,
     OpDefinition,
     PageMeta,
     PresetData,
+    SyncUrlResult,
     TemplateData,
     TemplateSummary,
     WebhookDeliverySummary,
     WebhookEndpoint,
 )
+# `Usage` is also the resource class below; the answer takes the JS SDK's name for it.
+from ._generated import Usage as UsageSummary
 from .errors import ImageStepError, JobFailedError
-from .webhooks import construct_webhook_event, verify_webhook_signature
+from .webhooks import WebhookEvent, construct_webhook_event, verify_webhook_signature
 
 DEFAULT_BASE_URL = "https://api.imagestep.dev"
 TERMINAL_JOB_STATUSES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
@@ -259,8 +271,10 @@ def _finish_item(
 
 
 def _stage_error(stage: dict[str, Any]) -> ImageStepError | None:
-    if stage.get("error"):
-        return ImageStepError(400, "invalid_param", stage["error"], False, "file")
+    """The service says why a file was not staged, with a code (imagestep#755)."""
+    failure = stage.get("failure")
+    if failure:
+        return ImageStepError(400, failure.get("code"), failure.get("message", ""), bool(failure.get("retryable")), failure.get("param"))
     return None
 
 
@@ -768,7 +782,7 @@ class Images(_ImagesCore):
         preset: str | None = None,
         response: str | None = None,
         parameters: dict[str, Any] | None = None,
-    ) -> bytes | dict[str, Any]:
+    ) -> bytes | SyncUrlResult:
         """Run one deterministic op, or a deterministic preset, on one image.
 
         ``file`` takes a path, ``bytes``, or anything with ``.read()``; the op's own parameters go in
@@ -805,7 +819,7 @@ class Images(_ImagesCore):
             "/api/v1/images/render", json_body={"templateId": template_id, "data": data or {}}
         )
 
-    def metadata(self, file: Any) -> dict[str, Any]:
+    def metadata(self, file: Any) -> ImageMetadata:
         """EXIF, GPS, dimensions, format and SHA-1. Free, and it stores nothing."""
         data, _, mime = _read_source(file, None, None)
         result = self._client.request_binary(
@@ -1116,8 +1130,8 @@ class Assets:
             time.sleep(interval)
         return {asset_id: self.get(asset_id) for asset_id in dict.fromkeys(ids)}
 
-    def status(self, ids: str | list[str]) -> list[dict[str, Any]]:
-        """Ingest state of up to 100 of your assets in one call (#233): `{id, status, width?, height?}` in request
+    def status(self, ids: str | list[str]) -> list[AssetStatus]:
+        """Ingest state of up to 100 of your assets in one call (#233): `{id, status, width?, height?, error?}` in request
         order; ids that are not yours are absent. Nothing is signed and no audit row is written."""
         return self._client.post("/api/v1/assets/status", {"ids": _ids(ids)}).data["items"]
 
@@ -1195,11 +1209,14 @@ class Assets:
         """Replace the tags on assets (`[]` clears them); `list(tag=)` finds them again (imagestep#334)."""
         return self._client.post("/api/v1/assets/update", {"ids": _ids(ids), "tags": list(tags)}).data
 
-    def delete(self, ids: str | list[str]) -> dict[str, Any]:
+    def delete(self, ids: str | list[str]) -> BatchDeleteResultDTO:
+        """One id or several answer the batch result: `deleted` lists the ids, `deletedCount` counts them
+        (imagestep#758). One id is `DELETE /assets/{id}` and raises `404 asset_not_found` when it is not there;
+        several skip those."""
         items = _ids(ids)
         if len(items) == 1:
             self._client.delete(f"/api/v1/assets/{items[0]}")
-            return {"deleted": 1}
+            return {"deletedCount": 1, "deleted": [items[0]]}
         return self._client.post("/api/v1/assets/delete", {"ids": items}).data
 
 
@@ -1350,7 +1367,7 @@ class Agent:
         op: str | None = None,
         context: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Feedback:
         """Report something ImageStep could not do. Free: no credit, no job."""
         body = {"kind": kind, "message": message}
         if op is not None:
@@ -1386,7 +1403,7 @@ class Usage:
         from_: str | None = None,
         to: str | None = None,
         group_by: str = "op",
-    ) -> dict[str, Any]:
+    ) -> UsageSummary:
         """``from_``/``to`` are ``YYYY-MM-DD`` or ISO-8601 instants; default window is 30 days."""
         return self._client.get(
             f"/api/v1/usage{_query({'from': from_, 'to': to, 'groupBy': group_by})}"
@@ -1431,7 +1448,7 @@ class Presets:
         """
         self._client.delete(f"/api/v1/presets/{slug}/versions/{version}")
 
-    def import_(self, presets: list[dict[str, Any]]) -> dict[str, Any]:
+    def import_(self, presets: list[dict[str, Any]]) -> BatchImportResultDTOPresetData:
         """Bulk import (`import` is a Python keyword, hence the trailing underscore)."""
         return self._client.post("/api/v1/presets/import", presets).data
 
@@ -1511,7 +1528,7 @@ class Templates:
         """Deletes the template and every version of it."""
         self._client.delete(f"/api/v1/templates/{template_id}")
 
-    def import_(self, templates: list[dict[str, Any]]) -> dict[str, Any]:
+    def import_(self, templates: list[dict[str, Any]]) -> BatchImportResultDTOTemplateData:
         """Takes template documents — what `get()` returns — and creates each as version 1 (`import` is a Python
         keyword)."""
         return self._client.post("/api/v1/templates/import", templates).data
@@ -1575,7 +1592,7 @@ class Webhooks:
     @staticmethod
     def construct_event(
         raw_body: bytes | str, header: str | None, secret: str, tolerance_seconds: int = 300, now: float | None = None
-    ) -> dict[str, Any]:
+    ) -> WebhookEvent:
         return construct_webhook_event(raw_body, header, secret, tolerance_seconds, now)
 
 
@@ -1778,7 +1795,7 @@ class AsyncImages(_ImagesCore):
         preset: str | None = None,
         response: str | None = None,
         parameters: dict[str, Any] | None = None,
-    ) -> bytes | dict[str, Any]:
+    ) -> bytes | SyncUrlResult:
         """Run one deterministic op, or a deterministic preset, on one image."""
         result = await self.transform_result(op, file=file, url=url, asset_id=asset_id, preset=preset,
                                              response=response, parameters=parameters)
@@ -1810,7 +1827,7 @@ class AsyncImages(_ImagesCore):
             "/api/v1/images/render", json_body={"templateId": template_id, "data": data or {}}
         )
 
-    async def metadata(self, file: Any) -> dict[str, Any]:
+    async def metadata(self, file: Any) -> ImageMetadata:
         """EXIF, GPS, dimensions, format and SHA-1. Free, and it stores nothing."""
         data, _, mime = _read_source(file, None, None)
         result = await self._client.request_binary(
@@ -2104,7 +2121,7 @@ class AsyncAssets:
 
         return dict(zip(unique, await asyncio.gather(*(read(asset_id) for asset_id in unique))))
 
-    async def status(self, ids: str | list[str]) -> list[dict[str, Any]]:
+    async def status(self, ids: str | list[str]) -> list[AssetStatus]:
         """See `Assets.status`."""
         return (await self._client.post("/api/v1/assets/status", {"ids": _ids(ids)})).data["items"]
 
@@ -2158,11 +2175,14 @@ class AsyncAssets:
     async def tag(self, ids: str | list[str], tags: list[str]) -> list[Asset]:
         return (await self._client.post("/api/v1/assets/update", {"ids": _ids(ids), "tags": list(tags)})).data
 
-    async def delete(self, ids: str | list[str]) -> dict[str, Any]:
+    async def delete(self, ids: str | list[str]) -> BatchDeleteResultDTO:
+        """One id or several answer the batch result: `deleted` lists the ids, `deletedCount` counts them
+        (imagestep#758). One id is `DELETE /assets/{id}` and raises `404 asset_not_found` when it is not there;
+        several skip those."""
         items = _ids(ids)
         if len(items) == 1:
             await self._client.delete(f"/api/v1/assets/{items[0]}")
-            return {"deleted": 1}
+            return {"deletedCount": 1, "deleted": [items[0]]}
         return (await self._client.post("/api/v1/assets/delete", {"ids": items})).data
 
 
@@ -2272,7 +2292,7 @@ class AsyncAgent:
         op: str | None = None,
         context: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Feedback:
         body = {"kind": kind, "message": message}
         if op is not None:
             body["op"] = op
@@ -2299,7 +2319,7 @@ class AsyncUsage:
         from_: str | None = None,
         to: str | None = None,
         group_by: str = "op",
-    ) -> dict[str, Any]:
+    ) -> UsageSummary:
         return (
             await self._client.get(
                 f"/api/v1/usage{_query({'from': from_, 'to': to, 'groupBy': group_by})}"
@@ -2336,7 +2356,7 @@ class AsyncPresets:
         50-version ceiling (imagestep#445)."""
         await self._client.delete(f"/api/v1/presets/{slug}/versions/{version}")
 
-    async def import_(self, presets: list[dict[str, Any]]) -> dict[str, Any]:
+    async def import_(self, presets: list[dict[str, Any]]) -> BatchImportResultDTOPresetData:
         return (await self._client.post("/api/v1/presets/import", presets)).data
 
     async def run(
@@ -2398,7 +2418,7 @@ class AsyncTemplates:
     async def delete(self, template_id: str) -> None:
         await self._client.delete(f"/api/v1/templates/{template_id}")
 
-    async def import_(self, templates: list[dict[str, Any]]) -> dict[str, Any]:
+    async def import_(self, templates: list[dict[str, Any]]) -> BatchImportResultDTOTemplateData:
         return (await self._client.post("/api/v1/templates/import", templates)).data
 
 

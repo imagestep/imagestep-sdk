@@ -190,6 +190,27 @@ describe("ops", () => {
     ]);
   });
 
+  // imagestep#758: one id answered a shape the SDK made up, `{ deleted: 1 }`, several the service's batch result.
+  it("delete() answers the batch result for one id and for several; one id is still DELETE /assets/{id}", async () => {
+    const fetchImpl = vi.fn(async (url, init) =>
+      init.method === "DELETE" ? new Response(null, { status: 204 }) : envelope({ deletedCount: 2, deleted: ["a", "b"] })
+    );
+    const c = client(fetchImpl);
+    const one = await c.assets.delete("a/1");
+    const two = await c.assets.delete(["a", "b"]);
+    expect(one).toEqual({ deletedCount: 1, deleted: ["a/1"] });
+    expect(Object.keys(one).sort()).toEqual(Object.keys(two).sort());
+    expect(fetchImpl.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      "DELETE https://api.test/api/v1/assets/a%2F1",
+      "POST https://api.test/api/v1/assets/delete"
+    ]);
+  });
+
+  it("delete() of one id that is not there throws the 404, as DELETE /assets/{id} answers it", async () => {
+    const fetchImpl = vi.fn(async () => errorResponse(404, { code: "asset_not_found", message: "Asset not found", retryable: false }));
+    await expect(client(fetchImpl).assets.delete(["gone"])).rejects.toMatchObject({ status: 404, code: "asset_not_found" });
+  });
+
   it("collections() lists with the filter and renameCollection() moves them, null meaning out", async () => {
     const fetchImpl = vi
       .fn()
@@ -615,7 +636,10 @@ describe("bulk ingest (#525)", () => {
         return envelope(
           items.map((f, n) =>
             n === 1
-              ? { error: "File exceeds the 100 MB limit" }
+              ? {
+                  failure: { code: "payload_too_large", message: "File exceeds the 100 MB limit", retryable: false, param: "fileSize" },
+                  error: "File exceeds the 100 MB limit"
+                }
               : { objectId: `obj${n}`, url: `https://storage.test/obj${n}`, contentType: "image/png" }
           )
         );
@@ -626,7 +650,8 @@ describe("bulk ingest (#525)", () => {
     const out = await client(fetchImpl).assets.uploadMany(files, { wait: false });
     expect(out[1]).toEqual({
       name: "upload.bin",
-      error: { code: "invalid_param", message: "File exceeds the 100 MB limit", retryable: false, param: "file" }
+      // The service's code (#755) — the SDK used to make up `invalid_param` for every refusal.
+      error: { code: "payload_too_large", message: "File exceeds the 100 MB limit", retryable: false, param: "fileSize" }
     });
     expect(calls.finish).toEqual([2]);
     expect(out[0].asset.id).toBe("ast_obj0");

@@ -54,7 +54,7 @@ export async function verifyWebhookSignature(rawBody, header, secret, opts = {})
 
 /**
  * Parse + verify in one call; throws when the signature does not check out.
- * @returns {Promise<{ id: string, type: string, createdAt: string, data: object }>}
+ * @returns {Promise<{ id: string, type: string, apiVersion: string, createdAt: string, data: object }>}
  */
 export async function constructWebhookEvent(rawBody, header, secret, opts) {
   if (!(await verifyWebhookSignature(rawBody, header, secret, opts))) {

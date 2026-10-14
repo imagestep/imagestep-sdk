@@ -2,8 +2,9 @@
 // to a TypeScript caller, and it is hand-written: every resource, option and parameter below was
 // either missing or wrong once, so each line here is a regression that a name-level check
 // (`test/sdk-surface.test.js`) cannot see. Nothing runs — it only has to type-check.
-import { ImageStep } from "../../index.js";
+import { ImageStep, constructWebhookEvent } from "../../index.js";
 import type { Asset, Job, JobEstimate, OpName, TransformResult, UsageSummary } from "../../index.js";
+import type { components } from "../../types/openapi.js";
 
 const client = new ImageStep({ apiKey: "sk_test" });
 
@@ -68,4 +69,72 @@ export async function assetOptions(): Promise<void> {
 export async function spend(): Promise<UsageSummary> {
   // The `usage` resource was absent from the declarations too.
   return client.usage.get({ groupBy: "day", from: "2026-09-01" });
+}
+
+type S = components["schemas"];
+/** `true` only when the two types are each assignable to the other. */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Answer<F extends (...args: never[]) => unknown> = Awaited<ReturnType<F>>;
+
+// imagestep#760 — a method's answer IS the generated schema, not a hand copy of its fields. Names and compilation were
+// held before; values were not, and two copies had drifted: `status()` lacked the asset's `error` (#734) and `delete()`
+// typed the batch's `deleted` (the ids) as a number. Each line is red when the declaration and the document part.
+export const answersAreTheGeneratedSchemas: [
+  Same<Answer<typeof client.assets.status>, S["AssetStatus"][]>,
+  Same<NonNullable<Answer<typeof client.assets.fromUrl>[number]["error"]>, S["ItemError"]>,
+  Same<NonNullable<Answer<typeof client.assets.uploadMany>[number]["error"]>, S["ItemError"]>,
+  Same<Answer<typeof client.assets.delete>, S["BatchDeleteResultDTO"]>,
+  Same<Answer<typeof client.presets.import>, S["BatchImportResultDTOPresetData"]>,
+  Same<Answer<typeof client.templates.import>, S["BatchImportResultDTOTemplateData"]>,
+  Same<Answer<typeof client.agent.feedback>, S["Feedback"]>,
+  Same<Omit<Parameters<typeof client.agent.feedback>[0], "idempotencyKey" | "signal">, S["FeedbackRequest"]>
+] = [true, true, true, true, true, true, true, true];
+
+// imagestep#786 — the synchronous lane's two JSON answers had no schema: `metadata()` and `response: "url"` were
+// `Record<string, unknown>`, the worker's keys typed by nobody.
+export const syncAnswersAreTheGeneratedSchemas: [
+  Same<Answer<typeof client.images.metadata>, S["ImageMetadata"]>,
+  Same<NonNullable<Answer<typeof client.images.transformResult>["json"]>, S["SyncUrlResult"]>,
+  Same<Exclude<Answer<typeof client.images.transform>, Uint8Array>, S["SyncUrlResult"]>
+] = [true, true, true];
+
+export async function generatedShapes(): Promise<void> {
+  const [first] = await client.assets.status("asset_1");
+  const failure: S["ItemError"] | undefined = first?.error;
+  const removed = await client.assets.delete(["asset_1", "asset_2"]);
+  const ids: string[] | undefined = removed.deleted;
+  // imagestep#758 — one id answers the same shape as several.
+  const r = await client.assets.delete(["a"]);
+  r.deletedCount satisfies number;
+  // @ts-expect-error — a kind outside the closed set (`FeedbackRequest.kind` is an enum, #754)
+  await client.agent.feedback({ kind: "praise", message: "x" });
+  void [failure, ids];
+}
+
+// imagestep#752 — a webhook's body is the generated event type, narrowed by `type`: `data` used to be
+// `Record<string, unknown>` and every key a receiver read was a guess the compiler could not check.
+export async function webhookEvents(body: string, header: string): Promise<void> {
+  const event = await constructWebhookEvent(body, header, "whsec_x");
+  if (event.type === "job.completed") {
+    // The names GET /jobs/{id} uses (#753); `creditsCharged` / `jobId` still type-check until their sunset.
+    const charged: number = event.data.actualCredits;
+    const id: string = event.data.id;
+    const cancelled: number = event.data.cancelledItems;
+    // @ts-expect-error — a job-level event carries no item index
+    void event.data.index;
+    void [charged, id, cancelled, event.data.creditsCharged];
+  } else if (event.type === "job.item.failed") {
+    const index: number = event.data.index;
+    const code: string | undefined = event.data.errorCode;
+    void [index, code];
+  } else if (event.type === "webhook.test") {
+    const message: string = event.data.message;
+    void message;
+  }
+  // @ts-expect-error — not an event type
+  if (event.type === "job.started") return;
+  // A caller's own type for `data` still compiles, as it did before the union.
+  const own = await constructWebhookEvent<{ jobId: string }>(body, header, "whsec_x");
+  const jobId: string = own.data.jobId;
+  void jobId;
 }

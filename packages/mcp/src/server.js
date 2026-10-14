@@ -127,15 +127,6 @@ export function typicalDurations(catalogue) {
 }
 
 /**
- * The values a parameter's catalogue description lists — `webp · jpeg · png` at its start — or null. That list is how the
- * catalogue names a closed set; the eval's fake account (eval/fake.mjs) refuses by the same reading.
- */
-export function listedValues(param) {
-  const parts = (param?.description || "").split(/[(.—]/)[0].trim().split(" · ");
-  return parts.length > 1 && parts.every((v) => /^[a-z0-9]+$/.test(v)) ? parts : null;
-}
-
-/**
  * The parameter contract of every op, one line each, read off the catalogue's `params` (#281).
  *
  * `transform`'s `parameters` used to be described by a hand-written line that named five ops and missed most of their
@@ -143,10 +134,11 @@ export function listedValues(param) {
  * `400 invalid_param` and retried. Names, types and defaults, not every description: those would put the whole catalogue
  * into every session, and the resource `imagestep://ops/{op}` carries them for the op the agent is about to call.
  *
- * Three things the catalogue says are kept, because the tool-choice eval (#557, eval/README.md) measured what leaving them
- * out cost: the values a parameter takes when its description lists them; what a REQUIRED parameter means — it is the one
- * an agent cannot leave out, so the one it must not guess (a rotation's direction, a template's rows); and for an AI op,
- * its one open `parameters` object as the catalogue describes it. That op's `model` and `prompt` are fields of the tool,
+ * Four things the catalogue says are kept, because the tool-choice eval (#557, eval/README.md) measured what leaving them
+ * out cost: the values a parameter takes (its `enum`) and the range it must fall in (`min` / `max`), which the catalogue
+ * states as fields since #765 — they used to be read out of the description's prose, and a range never could be; what a
+ * REQUIRED parameter means — it is the one an agent cannot leave out, so the one it must not guess (a rotation's
+ * direction, a template's rows); and for an AI op, its one open `parameters` object as the catalogue describes it. That op's `model` and `prompt` are fields of the tool,
  * not keys inside `parameters`, and listing them there read as the keys to fill: upscale was asked for `{scale: 2}` in
  * every run of two models.
  */
@@ -161,10 +153,11 @@ export function paramsContract(catalogue) {
         .map(([name, p]) => {
           const d = p?.default;
           const dflt = d === undefined || d === null ? "" : `=${typeof d === "string" ? d : JSON.stringify(d)}`;
-          const values = listedValues(p);
-          const required = /\(required\)/.test(p?.description || "");
-          const meaning = required && !values ? `: ${p.description.replace(/\s*\(required\)/, "").replace(/\.$/, "")}` : "";
-          return `${name}(${values ? values.join("|") : p?.type || "any"}${dflt}${required ? `, required${meaning}` : ""})`;
+          const values = Array.isArray(p?.enum) ? p.enum : null;
+          const range = p?.min !== undefined && p?.max !== undefined ? ` ${p.min}..${p.max}` : "";
+          const required = p?.required === true;
+          const meaning = required && !values && p.description ? `: ${p.description.replace(/\.$/, "")}` : "";
+          return `${name}(${values ? values.join("|") : p?.type || "any"}${range}${dflt}${required ? `, required${meaning}` : ""})`;
         });
       return `${o.op}: ${params.length ? params.join(", ") : "no parameters"}`;
     });
@@ -193,7 +186,203 @@ function costNote(deterministic, prices = []) {
   );
 }
 
-/** Compact, reference-only view of an asset — never bytes, never a data URL. */
+/**
+ * How many of a job's outputs a tool answer carries (#520) — search_assets' default page, so `search_assets {job_id,
+ * cursor}` carries on exactly where the answer stopped. #440 capped the items a job document inlines for the same
+ * reason; the outputs were still the whole run: 500 of them were ~221 KB, ~60k tokens, in one tool result.
+ */
+export const OUTPUTS_INLINE = 20;
+
+/*
+ * What the tools answer, as each tool's `outputSchema` (imagestep#768): `tools/list` shows an agent the fields before its
+ * first call, a client that checks `structuredContent` against it (the SDK's `Client` does) is told when a field drifts,
+ * and /docs/mcp's answer table is generated from it. Loose on purpose: every key is optional — which ones an answer carries
+ * depends on the mode (job, timed out, dry run, sync) — and a value passed through from the API may also be null. But no
+ * key may be missing from it: an answer key a schema does not name fails a strict client (`additionalProperties: false`).
+ * `assetRefSchema` / `jobRefSchema` are also the shape the two projections are held to — `assetRef` / `jobRef` here and
+ * the n8n node's (test/ref-projections.test.js); `.parse` runs in tests only.
+ */
+
+/** An asset in an answer: `assetRef`. */
+export const assetRefSchema = z.object({
+  assetId: z.string().optional().describe("What asset_ids takes."),
+  name: z.string().nullish(),
+  status: z.string().nullish().describe("PROCESSING, DONE (usable) or FAILED (see error)."),
+  mimeType: z.string().nullish(),
+  width: z.number().nullish(),
+  height: z.number().nullish(),
+  size: z.number().nullish().describe("Bytes."),
+  collection: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  publicUrl: z.string().optional().describe("Stable CDN URL, once published."),
+  expiresAt: z.string().optional().describe("When the asset is deleted (ISO 8601), if it has a retention."),
+  error: z
+    .looseObject({ code: z.string().nullish(), message: z.string().nullish(), retryable: z.boolean().nullish() })
+    .optional()
+    .describe("Why ingest failed, on a FAILED asset; retryable says whether uploading the file again can help.")
+});
+
+/** One item of a job in an answer: `jobRef`'s `items[]`. */
+export const jobItemRefSchema = z.object({
+  index: z.number().nullish(),
+  status: z.string().nullish(),
+  sourceAssetId: z.string().nullish(),
+  resultAssetId: z.string().nullish(),
+  error: z.string().optional(),
+  errorCode: z.string().nullish(),
+  retryable: z.boolean().nullish(),
+  variant: z.string().nullish(),
+  step: z.number().nullish(),
+  failedStep: z.number().nullish(),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  durationMs: z.number().nullish(),
+  credits: z.number().nullish(),
+  startedAt: z.string().nullish(),
+  finishedAt: z.string().nullish()
+});
+
+/** The job handle: `jobRef`. */
+export const jobRefSchema = z.object({
+  jobId: z.string().optional().describe("What job_status takes."),
+  type: z.string().nullish().describe("The engine that ran it: ai-generate, ai-edit, parse, process, render, chain."),
+  status: z
+    .string()
+    .nullish()
+    .describe("COMPLETED, FAILED or CANCELLED once it has stopped; anything else means it is still moving — poll job_status."),
+  op: z.string().nullish().describe("The op it ran, when it ran one."),
+  presetId: z.string().nullish().describe("The preset it ran, when it ran one."),
+  presetVersion: z.number().nullish().describe("The preset version that ran: slug@version runs exactly it again."),
+  templateId: z.string().nullish().describe("A render job's template."),
+  templateVersion: z.number().nullish().describe("The template version it rendered."),
+  totalItems: z.number().nullish().describe("How many items: one per input (per variant)."),
+  itemsNote: z.string().optional().describe("Only the first page of items is here: the job_status call (items_cursor) that reads on."),
+  itemsCursor: z.string().nullish().describe("What job_status takes as items_cursor."),
+  completedItems: z.number().nullish().describe("Items that finished."),
+  failedItems: z.number().nullish().describe("Items that failed; with errorCode and retryable, the verdict on them."),
+  creditsCharged: z.number().nullish().describe("What the job cost; a failed item is not charged."),
+  errorCode: z.string().nullish().describe("A failed job: the verdict on its failed items, from the closed set of error codes."),
+  retryable: z.boolean().nullish().describe("A failed job: whether resuming it can succeed."),
+  expiresAt: z.string().nullish().describe("When the job record is swept: its retention, the same as the assets it made."),
+  items: z
+    .array(jobItemRefSchema)
+    .optional()
+    .describe("One per input (per variant): its status, the ids in and out, the error, who ran it, how long and at what cost."),
+  outputs: z
+    .array(assetRefSchema)
+    .optional()
+    .describe(`The assets a finished job made, with publicUrl when published — the first ${OUTPUTS_INLINE}.`),
+  outputsTruncated: z.boolean().optional().describe("More outputs than the answer carries."),
+  outputsNote: z.string().optional().describe("The search_assets call (job_id and cursor) that reads the rest of the outputs.")
+});
+
+/** A dry run's price: the API's estimate, passed through — the keys an agent decides on named, the rest kept. */
+const estimateSchema = z
+  .looseObject({
+    estimatedCredits: z.number().nullish(),
+    creditBalance: z.number().nullish(),
+    sufficientCredit: z.boolean().nullish().describe("false: a real submit would answer insufficient_credit — stop and tell the person."),
+    totalItems: z.number().nullish(),
+    costPerItem: z.number().nullish()
+  })
+  .optional()
+  .describe("A dry run's answer: the price of exactly this call. Nothing was created or charged.");
+
+/** What a write tool and job_status answer about a job: the handle, and what a wait that ran out or an analyze adds. */
+const jobAnswerSchema = jobRefSchema.extend({
+  timedOut: z.boolean().optional().describe("The wait ran out, not the job: poll job_status with the jobId, never submit again."),
+  note: z.string().optional().describe("What to do next, in words."),
+  analyses: z
+    .array(z.object({ assetId: z.string().nullish(), output: z.any() }))
+    .optional()
+    .describe("An analyze job: one per completed item, the answer in output.")
+});
+
+/** transform's synchronous answer (`runSync`) and read_metadata's on one local file: nothing stored, no asset id. */
+const syncAnswerShape = {
+  mode: z.literal("sync").optional().describe("Ran synchronously: nothing was stored and no asset id exists."),
+  stored: z.literal(false).optional(),
+  durationMs: z.number().nullish(),
+  path: z.string().optional().describe("Over stdio: the file, in this server's temp directory."),
+  url: z.string().nullish().describe("On the hosted server: a signed link to the bytes, valid for expiresInSeconds."),
+  expiresInSeconds: z.number().nullish(),
+  mimeType: z.string().nullish(),
+  width: z.number().nullish(),
+  height: z.number().nullish(),
+  bytes: z.number().nullish(),
+  image: z.looseObject({}).nullish().describe("read_metadata on a local file: what the image is."),
+  metadata: z.record(z.string(), z.any()).nullish().describe("read_metadata on a local file: the file's metadata.")
+};
+
+/**
+ * A refused call: `fail()`, with `isError`. The SDK's `Client` checks `structuredContent` against the schema on an error
+ * answer too, so every tool names it.
+ */
+const errorSchema = z
+  .looseObject({
+    code: z.string().nullish(),
+    message: z.string().nullish(),
+    retryable: z.boolean().nullish(),
+    param: z.string().nullish(),
+    requestId: z.string().nullish()
+  })
+  .optional()
+  .describe("A refused call (isError): code, message, retryable — whether the same call can succeed — and param, the input to fix.");
+
+/** Each tool's `outputSchema`. */
+const OUTPUT_SCHEMAS = {
+  generate: jobAnswerSchema.omit({ analyses: true }).extend({ estimate: estimateSchema, error: errorSchema }),
+  transform: jobAnswerSchema.extend({
+    error: errorSchema,
+    estimate: estimateSchema,
+    ...syncAnswerShape,
+    assets: z
+      .array(z.looseObject({ id: z.string().nullish(), name: z.string().nullish() }))
+      .optional()
+      .describe("read_metadata on assets: each one's id, name, image, metadata and expiresAt.")
+  }),
+  run_preset: jobAnswerSchema.extend({
+    error: errorSchema,
+    estimate: estimateSchema,
+    preset: z
+      .object({ id: z.string().nullish(), slug: z.string().nullish(), version: z.number().nullish(), steps: z.number().nullish() })
+      .optional()
+      .describe("A dry run: the preset the reference resolved to.")
+  }),
+  save_preset: z.object({
+    preset: z.string().optional().describe("slug@version: what run_preset takes to run exactly this version."),
+    id: z.string().nullish(),
+    slug: z.string().nullish(),
+    version: z.number().nullish(),
+    steps: z.number().nullish().describe("How many steps it has."),
+    warnings: z.array(z.any()).optional().describe("Saved anyway; what the service flagged."),
+    note: z.string().optional(),
+    error: errorSchema
+  }),
+  job_status: jobAnswerSchema.omit({ timedOut: true }).extend({ error: errorSchema }),
+  search_assets: z.object({
+    error: errorSchema,
+    assets: z.array(assetRefSchema).optional(),
+    collections: z
+      .array(z.object({ collection: z.string().nullish(), count: z.number().nullish(), lastAddedAt: z.string().optional() }))
+      .optional()
+      .describe("With group_by: collection, instead of assets."),
+    page: z.number().nullish(),
+    perPage: z.number().nullish(),
+    total: z.number().nullish(),
+    hasMore: z.boolean().nullish(),
+    nextCursor: z.string().optional().describe("What cursor takes to read the next page.")
+  }),
+  send_feedback: z.object({
+    reported: z.boolean().optional(),
+    id: z.string().optional(),
+    kind: z.string().optional(),
+    note: z.string().optional(),
+    error: errorSchema
+  })
+};
+
+/** Compact, reference-only view of an asset — never bytes, never a data URL. Its shape: {@link assetRefSchema}. */
 export function assetRef(a) {
   if (!a) return null;
   return {
@@ -208,12 +397,15 @@ export function assetRef(a) {
     collection: a.collection || undefined,
     tags: a.tags?.length ? a.tags : undefined,
     publicUrl: a.publicUrl || undefined,
-    expiresAt: a.expiresAt ? new Date(a.expiresAt).toISOString() : undefined
+    expiresAt: a.expiresAt ? new Date(a.expiresAt).toISOString() : undefined,
+    // Why ingest failed, on a FAILED asset only (#734): whether uploading the file again can help is `retryable`.
+    error: a.error || undefined
   };
 }
 
 /**
- * The job handle an agent gets back, and the trace it can answer from (contract §11, imagestep#125).
+ * The job handle an agent gets back, and the trace it can answer from (contract §11, imagestep#125). Its shape:
+ * {@link jobRefSchema}.
  *
  * Each item carries who ran it, on what model, how long it took and what it cost — so "did that step
  * work, why not, and should I pay for it again" is answerable from the tool result rather than from a
@@ -226,7 +418,7 @@ export function jobRef(job, outputs, outputsTotal, outputsCursor) {
     status: i.status,
     sourceAssetId: i.sourceAssetId,
     resultAssetId: i.resultAssetId,
-    error: i.error || i.errorMessage || undefined,
+    error: i.error || undefined,
     errorCode: i.errorCode,
     retryable: i.retryable,
     variant: i.variant,
@@ -254,10 +446,10 @@ export function jobRef(job, outputs, outputsTotal, outputsCursor) {
     // The service inlines the first page of items and says when there are more (imagestep#440). Saying so here is
     // the whole point of the cap: a page of items lands in a context, and a context is a viewport.
     itemsNote: job.itemsTruncated ? itemsNote(job, items.length) : undefined,
-    itemsCursor: job.itemsCursor,
+    itemsCursor: job.itemsNextCursor,
     completedItems: job.completedItems ?? items.filter((i) => i.status === "COMPLETED").length,
     failedItems: job.failedItems ?? items.filter((i) => i.status === "FAILED").length,
-    creditsCharged: job.creditsCharged ?? job.actualCredits,
+    creditsCharged: job.actualCredits,
     // A failed job's verdict on its items (#294): retryable when any failed item is, so a resume is worth its price.
     errorCode: job.errorCode,
     retryable: job.retryable,
@@ -280,12 +472,12 @@ export function jobRef(job, outputs, outputsTotal, outputsCursor) {
 
 /**
  * Where the rest of a job's items are, as job_status calls (#573): an agent that has only this server cannot call the
- * REST listing. A job_status answer knows the cursor that reads on; a write tool's answer carries the job document's
- * first page and no listing read, so it names the job_status call that answers with one.
+ * REST listing. The job document says where its first page stops (`itemsNextCursor`, #751), and so does each page of the
+ * listing; a job read some other way (a submit's answer) may not, and then the note names the job_status call that does.
  */
 function itemsNote(job, shown) {
   const failed = `job_status {"job_id": "${job.id}", "items_status": "FAILED"} reads just the ones a resume would run again.`;
-  if (!job.itemsCursor) {
+  if (!job.itemsNextCursor) {
     return (
       `Only the first ${shown} items of ${job.totalItems} are here. job_status {"job_id": "${job.id}"} answers with the ` +
       `itemsCursor that reads on from them; ${failed}`
@@ -294,16 +486,9 @@ function itemsNote(job, shown) {
   const status = job.itemsStatus ? `, "items_status": "${job.itemsStatus}"` : "";
   return (
     `More items follow these ${shown}: read on with job_status {"job_id": "${job.id}"${status}, "items_cursor": ` +
-    `"${job.itemsCursor}"} and follow each answer's itemsCursor until it has none.${job.itemsStatus ? "" : ` ${failed}`}`
+    `"${job.itemsNextCursor}"} and follow each answer's itemsCursor until it has none.${job.itemsStatus ? "" : ` ${failed}`}`
   );
 }
-
-/**
- * How many of a job's outputs a tool answer carries (#520) — search_assets' default page, so `search_assets {job_id,
- * cursor}` carries on exactly where the answer stopped. #440 capped the items a job document inlines for the same
- * reason; the outputs were still the whole run: 500 of them were ~221 KB, ~60k tokens, in one tool result.
- */
-export const OUTPUTS_INLINE = 20;
 
 /** The run's products in its items' order; rows no inlined item names keep the listing's order, after the rest. */
 function inItemOrder(assets, job) {
@@ -489,6 +674,12 @@ const WRITE_TOOL = { readOnlyHint: false, destructiveHint: false, idempotentHint
  * and nothing else: when the MCP client times out and the agent calls the tool again, a fresh key is a second job and
  * a second charge. Only the agent knows that two calls are the same attempt, so the key has to be its to give.
  */
+/**
+ * A prompt's ceiling here (#763): the service's is the NATS message a job rides on (`aiPromptBytes`, 32 KB), and an
+ * analyze prompt's 2000 bytes (`AnalyzePricing.MAX_PROMPT_BYTES`) is answered by the service. A prompt an agent writes
+ * past 4000 characters is a document, not an instruction to an image model.
+ */
+const PROMPT_MAX = 4000;
 const idempotencyKeySchema = z
   .string()
   .min(1)
@@ -526,7 +717,13 @@ const retentionDaysSchema = z
   .describe(
     "Keep what this call stores — the images you hand it and the ones it makes — this many days instead of the account's plan retention. Shorter only: more is kept for the plan's time. Use it when the outputs are consumed at once (posted, sent on) and need not be kept."
   );
-const assetIdsSchema = z.array(z.string().min(1)).max(500).optional().describe("Existing asset ids to process.");
+// 500 where the service takes 10000 (`JobRequest.MAX_ASSET_IDS`): an agent writes every id of the list token by token
+// into one call, and 10000 of them is ~400 KB of arguments. A job that size is the CLI's or an SDK's (#763).
+const assetIdsSchema = z
+  .array(z.string().min(1))
+  .max(500)
+  .optional()
+  .describe("Existing asset ids to process — at most 500 in one call here; a bigger batch is the CLI's or an SDK's.");
 const filePathsSchema = z
   .array(z.string().min(1))
   .max(100)
@@ -616,15 +813,8 @@ export function createServer(options) {
         });
       // One stage, bounded-concurrent PUTs, one finish and one status call per tick (#525): file by file, 15–20 files ran
       // past an MCP client's 60 s request timeout while the uploads carried on — and a retry uploaded them again.
-      for (const r of await client.assets.uploadMany(file_paths, { collection, retentionDays: retention_days })) {
-        if (r.error)
-          throw Object.assign(new Error(`${r.name}: ${r.error.message}`), {
-            code: r.error.code,
-            param: "file_paths",
-            retryable: r.error.retryable
-          });
-        ids.push(r.asset.id);
-      }
+      for (const r of await client.assets.uploadMany(file_paths, { collection, retentionDays: retention_days }))
+        ids.push(ingested(r, r.name, "file_paths"));
     }
     if (urls?.length) {
       // The SERVICE fetches (imagestep#219): the hosted server has no business holding an agent's image
@@ -633,17 +823,26 @@ export function createServer(options) {
       // The schema keeps 100 URLs; the SDK sends them twenty to a request, the service's ceiling (#525).
       const checked = [];
       for (const u of urls) checked.push(String(await assertPublicUrl(u)));
-      for (const r of await client.assets.fromUrl(checked, { collection, retentionDays: retention_days })) {
-        if (r.error)
-          throw Object.assign(new Error(`${r.url}: ${r.error.message}`), {
-            code: r.error.code,
-            param: "urls",
-            retryable: r.error.retryable
-          });
-        ids.push(r.asset.id);
-      }
+      for (const r of await client.assets.fromUrl(checked, { collection, retentionDays: retention_days }))
+        ids.push(ingested(r, r.url, "urls"));
     }
     return ids;
+  }
+
+  /**
+   * The asset id an ingest result stands for, or the reason it has none. Two ways in: the service refused the file or
+   * URL outright (`r.error`), or took it and ingest then FAILED (#759) — that one comes back as an asset, with the reason
+   * on it (#734). A job submitted on it would be accepted and fail item by item, with another code and the job's
+   * `retryable` in place of the one that says whether uploading the file again can help.
+   */
+  function ingested(r, label, param) {
+    const error = r.error || (r.asset.status === "FAILED" ? r.asset.error || { message: "ingest failed", retryable: true } : null);
+    if (!error) return r.asset.id;
+    throw Object.assign(new Error(`${label}: ${error.message}`), {
+      code: error.code || "internal_error",
+      param,
+      retryable: error.retryable
+    });
   }
 
   /**
@@ -719,7 +918,7 @@ export function createServer(options) {
     const common = { mode: "sync", op, durationMs: Date.now() - started, stored: false };
 
     if (wantsUrl) {
-      // `?response=url` answers in JSON: { url, contentType, bytes, expiresInSeconds, width?, height? }.
+      // `?response=url` answers in JSON — `SyncUrlResult` in the API's OpenAPI document (imagestep#786).
       const body = result.json || {};
       return ok({
         ...common,
@@ -823,16 +1022,16 @@ export function createServer(options) {
   }
 
   /**
-   * The items a job_status answer carries (#573): the job document's first page, unless the agent asked for a page of
-   * the items listing — `status` for the items in one state, `cursor` to read on from an earlier answer — or that first
-   * page is not all of them, when it is read from the listing too, because only the listing says where the rest start.
-   * The page comes back as the job's `items`, with the cursor to the next one while there is one.
+   * The items a job_status answer carries (#573): the job document's first page — which says where the rest start,
+   * `itemsNextCursor` (#751) — unless the agent asked for a page of the items listing: `status` for the items in one
+   * state, `cursor` to read on from an earlier answer. That page comes back as the job's `items`, with the cursor to the
+   * next one while there is one.
    */
   async function itemsPage(job, status, cursor) {
-    if (!status && !cursor && !job.itemsTruncated) return job;
+    if (!status && !cursor) return job;
     const { items, meta } = await client.jobs.items(job.id, { status, cursor });
     const more = Boolean(meta?.hasMore && meta.nextCursor);
-    return { ...job, items, itemsTruncated: more || undefined, itemsCursor: more ? meta.nextCursor : undefined, itemsStatus: status };
+    return { ...job, items, itemsTruncated: more || undefined, itemsNextCursor: more ? meta.nextCursor : undefined, itemsStatus: status };
   }
 
   /**
@@ -1022,8 +1221,9 @@ export function createServer(options) {
         "`subjects` — reference images plus a locked descriptor — so every image in a batch shows the same one; pin it as " +
         "slug@version when the batch has to match a later run. " +
         COST_NOTE,
+      outputSchema: OUTPUT_SCHEMAS.generate,
       inputSchema: z.object({
-        prompt: z.string().min(1).max(4000),
+        prompt: z.string().min(1).max(PROMPT_MAX),
         count: z.number().int().min(1).max(10).default(1),
         model: z
           .string()
@@ -1092,12 +1292,13 @@ export function createServer(options) {
         "variants gives several outputs from one call as ONE job (e.g. every social size). " +
         "read_metadata costs no credits; a local file stores nothing, but urls are ingested first, so each becomes an asset in the account and counts toward its asset quota. " +
         COST_NOTE,
+      outputSchema: OUTPUT_SCHEMAS.transform,
       inputSchema: z.object({
         op: z.enum(catalogue.ops),
         asset_ids: assetIdsSchema,
         file_paths: filePathsSchema,
         urls: urlsSchema,
-        prompt: z.string().max(4000).optional().describe(PROMPT_NOTE),
+        prompt: z.string().max(PROMPT_MAX).optional().describe(PROMPT_NOTE),
         model: z
           .string()
           .optional()
@@ -1198,12 +1399,13 @@ export function createServer(options) {
         "the preset's prompt or yours writes {{subject.<name>}} — so a new scene is a new prompt here, not a new version, " +
         "and it names the subject as {{subject.<name>}} instead of re-describing it. " +
         COST_NOTE,
+      outputSchema: OUTPUT_SCHEMAS.run_preset,
       inputSchema: z.object({
         preset: z.string().min(1).describe("Preset slug or id, or slug@version to run exactly that version."),
         prompt: z
           .string()
           .min(1)
-          .max(4000)
+          .max(PROMPT_MAX)
           .optional()
           .describe(
             "This run's prompt, in place of the one on the preset's AI step. {{subject.<name>}} expands to that subject's " +
@@ -1300,32 +1502,46 @@ export function createServer(options) {
         "dry_run prices it step by step. Answers `warnings` when the steps are legal but probably not what you meant. " +
         "Answers `preset` as slug@version: pass that to run_preset so a later run is this version. " +
         "A slug already in use is refused; pick another. Free: no credits, no job.",
+      outputSchema: OUTPUT_SCHEMAS.save_preset,
       inputSchema: z.object({
         name: z.string().min(1).max(200).describe("What a person sees in the console."),
-        slug: z.string().min(1).max(100).optional().describe("URL-safe identifier; derived from name when omitted. builtin- is reserved."),
+        slug: z
+          .string()
+          .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+          .optional()
+          .describe(
+            "URL-safe identifier: lowercase letters, digits and single hyphens; derived from name when omitted. builtin- is reserved."
+          ),
         description: z.string().max(2000).optional().describe("One sentence on what the preset is for."),
         steps: z
           .array(
             z.object({
               op: z.enum(STEP_OPS),
               model: z.string().optional().describe("AI steps only: the model. Default: the op's defaultModel."),
-              prompt: z.string().max(4000).optional().describe("AI steps only. {{subject.<name>}} expands to that subject's descriptor."),
+              prompt: z
+                .string()
+                .max(PROMPT_MAX)
+                .optional()
+                .describe("AI steps only. {{subject.<name>}} expands to that subject's descriptor."),
               parameters: z.record(z.string(), z.any()).optional().describe("The op's parameters — the same contract transform takes.")
             })
           )
           .min(1)
-          .max(20)
+          .max(50)
           .describe("Run in order, one op per step."),
         subjects: z
           .array(
             z.object({
-              name: z.string().min(1).max(64).describe("Referenced in a prompt as {{subject.<name>}}."),
+              name: z
+                .string()
+                .regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)
+                .describe("Lowercase handle, unique among the subjects; referenced in a prompt as {{subject.<name>}}."),
               referenceAssetIds: z
                 .array(z.string().min(1))
                 .min(1)
                 .max(4)
                 .describe("Your own finished assets; they pin the geometry. At most four across all subjects."),
-              descriptor: z.string().min(1).max(2000).describe("Colour and material only — the images carry the shape.")
+              descriptor: z.string().min(1).max(300).describe("Colour and material only — the images carry the shape.")
             })
           )
           .max(4)
@@ -1366,6 +1582,7 @@ export function createServer(options) {
       description:
         "Progress of a job by id (per-item states) and, once finished, its output asset ids — with public URLs for outputs already published, or pass publish:true. " +
         "Items come a page at a time: items_cursor reads on, items_status reads only the items in one state (FAILED: what a resume would run again). Free.",
+      outputSchema: OUTPUT_SCHEMAS.job_status,
       inputSchema: z.object({
         job_id: z.string().min(1),
         publish: statusPublishSchema,
@@ -1411,6 +1628,7 @@ export function createServer(options) {
         "Find assets by collection, name/keyword, mime type, tag, size, ingest state or when they were made. Returns references (id, dimensions, tags, publicUrl, expiry) — never bytes. " +
         'With group_by "collection" it lists your collections instead — check a name before filtering or submitting into it, since a ' +
         "misspelt one is simply a new collection. Free.",
+      outputSchema: OUTPUT_SCHEMAS.search_assets,
       inputSchema: z.object({
         group_by: z
           .enum(["collection"])
@@ -1429,7 +1647,9 @@ export function createServer(options) {
         status: z
           .enum(["PROCESSING", "DONE", "FAILED"])
           .optional()
-          .describe("Ingest state. FAILED is an upload whose ingest never finished — check this after uploading a batch."),
+          .describe(
+            "Ingest state. FAILED is an upload whose ingest never finished, with why on its error (retryable: whether uploading it again can help) — check this after uploading a batch."
+          ),
         created_from: z
           .string()
           .max(40)
@@ -1557,6 +1777,7 @@ export function createServer(options) {
         "That covers an input or output it cannot handle, an action none of these tools performs, an op that does not exist, a " +
         "parameter that is missing, a result that is wrong. Saying so in your reply reaches only the person; this reaches the " +
         "people who build ImageStep. Report instead of working around the gap with other ops. Free: no credits, no job.",
+      outputSchema: OUTPUT_SCHEMAS.send_feedback,
       inputSchema: z.object({
         kind: z
           .enum(["capability_gap", "bug", "other"])

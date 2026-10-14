@@ -119,6 +119,8 @@ def test_an_answer_without_an_envelope_is_retryable_as_a_429_or_a_5xx(status, re
     with pytest.raises(ImageStepError) as excinfo:
         client(rec).jobs.get("j")
     assert (excinfo.value.status, excinfo.value.retryable) == (status, retryable)
+    # #766: and no code — the service sent none, and `unknown_error` is not one it has.
+    assert excinfo.value.code is None
 
 
 def test_retries_a_retryable_error_honouring_retry_after_with_the_same_idempotency_key():
@@ -217,6 +219,39 @@ def test_set_collection_sends_the_name_and_none_takes_the_assets_out():
         {"ids": ["a"], "collection": "shoot-01"},
         {"ids": ["a", "b"], "collection": ""},
     ]
+
+
+def _delete_router(request: httpx.Request) -> httpx.Response:
+    if request.method == "DELETE":
+        return httpx.Response(204)
+    return envelope({"deletedCount": 2, "deleted": ["a", "b"]})
+
+
+def test_delete_answers_the_batch_result_for_one_id_and_for_several():
+    """imagestep#758: one id answered `{"deleted": 1}`, a shape the SDK made up; several the service's batch result.
+    One id is still `DELETE /assets/{id}`, so its 404 still raises."""
+    rec = Recorder(router=_delete_router)
+    c = client(rec)
+    one = c.assets.delete("a")
+    two = c.assets.delete(["a", "b"])
+    assert one == {"deletedCount": 1, "deleted": ["a"]}
+    assert sorted(one) == sorted(two)
+    assert [f"{r.method} {r.url.path}" for r in rec.calls] == ["DELETE /api/v1/assets/a", "POST /api/v1/assets/delete"]
+
+    gone = Recorder(error_response(404, {"code": "asset_not_found", "message": "Asset not found", "retryable": False}))
+    with pytest.raises(ImageStepError) as raised:
+        client(gone).assets.delete(["gone"])
+    assert raised.value.code == "asset_not_found"
+
+
+@pytest.mark.asyncio
+async def test_async_delete_answers_the_batch_result_for_one_id_and_for_several():
+    rec = Recorder(router=_delete_router)
+    async with aclient(rec) as c:
+        one = await c.assets.delete(["a"])
+        two = await c.assets.delete(["a", "b"])
+    assert one == {"deletedCount": 1, "deleted": ["a"]}
+    assert sorted(one) == sorted(two)
 
 
 def test_collections_lists_with_the_filter_and_rename_moves_them_none_meaning_out():
@@ -537,10 +572,10 @@ def test_upload_reads_a_path_and_a_binary_file_object(tmp_path):
 
 
 def test_upload_surfaces_a_stage_error_and_a_failed_put():
-    rec = Recorder(envelope([{"error": "file too large"}]))
+    rec = Recorder(envelope([{"failure": {"code": "unsupported_format", "message": "Only image files are allowed", "retryable": False, "param": "fileName"}}]))
     with pytest.raises(ImageStepError) as excinfo:
-        client(rec).assets.upload(b"x", name="big.png")
-    assert excinfo.value.code == "invalid_param" and excinfo.value.param == "file"
+        client(rec).assets.upload(b"x", name="notes.txt")
+    assert excinfo.value.code == "unsupported_format" and excinfo.value.param == "fileName"
 
     def route(request: httpx.Request) -> httpx.Response:
         if str(request.url).endswith("/stage-upload"):
@@ -1221,13 +1256,14 @@ def test_upload_many_keeps_a_refused_file_as_its_own_result():
             return envelope(
                 [
                     {"objectId": "obj0", "url": "https://storage.test/obj0", "contentType": "image/png"},
-                    {"error": "File exceeds the 100 MB limit"},
+                    {"failure": {"code": "payload_too_large", "message": "File exceeds the 100 MB limit", "retryable": False, "param": "fileSize"}, "error": "File exceeds the 100 MB limit"},
                 ]
             )
         return route(request)
 
     out = client(Recorder(router=refusing)).assets.upload_many([b"\x00", b"\x01"], wait=False)
-    assert out[1] == {"name": "upload.bin", "error": {"code": "invalid_param", "message": "File exceeds the 100 MB limit", "retryable": False, "param": "file"}}
+    # The service's code (#755) — the SDK used to make up `invalid_param` for every refusal.
+    assert out[1] == {"name": "upload.bin", "error": {"code": "payload_too_large", "message": "File exceeds the 100 MB limit", "retryable": False, "param": "fileSize"}}
     assert out[0]["asset"]["id"] == "ast_obj0"
     assert seen["finish"] == [1]
 

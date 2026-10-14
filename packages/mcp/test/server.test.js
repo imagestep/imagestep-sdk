@@ -17,13 +17,18 @@ import { assertPublicUrl, isPrivateAddress } from "../src/safe-url.js";
 
 const ADDRESSES = JSON.parse(readFileSync(new URL("../../../test/fixtures/outbound-addresses.json", import.meta.url), "utf8"));
 
-/** A server wired to a fake ImageStep client; returns a connected MCP client. */
+/**
+ * A server wired to a fake ImageStep client; returns a connected MCP client. It lists the tools first, as a client does,
+ * so every call below is checked against the tool's outputSchema by the SDK's own Client (imagestep#768): it checks only
+ * against a schema it has listed.
+ */
 async function connect(fakeClient, opts = {}) {
   const server = createServer({ apiKey: "is_sk_test", client: fakeClient, ...opts });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: "test", version: "0" });
   await client.connect(clientTransport);
+  await client.listTools();
   return client;
 }
 
@@ -245,8 +250,8 @@ describe("the parameter contract and catalogues an MCP-only client can read (#28
       requiresAssets: true,
       requiresPrompt: false,
       params: {
-        width: { type: "integer", description: "px" },
-        fit: { type: "string", default: "inside" },
+        width: { type: "integer", min: 1, max: 16384, description: "px" },
+        fit: { type: "string", enum: ["cover", "contain", "fill", "inside", "outside"], default: "inside" },
         withoutEnlargement: { type: "boolean", default: true }
       }
     },
@@ -264,9 +269,9 @@ describe("the parameter contract and catalogues an MCP-only client can read (#28
       requiresAssets: true,
       requiresPrompt: false,
       params: {
-        angle: { type: "integer", description: "Degrees clockwise, -360 to 360 (required)." },
-        format: { type: "string", description: "webp · jpeg · png (required)" },
-        fit: { type: "string", default: "inside", description: "cover · contain" }
+        angle: { type: "integer", min: -360, max: 360, required: true, description: "Degrees clockwise." },
+        format: { type: "string", enum: ["webp", "jpeg", "png"], required: true, description: "The format to write." },
+        fit: { type: "string", enum: ["cover", "contain"], default: "inside", description: "How it meets the box." }
       }
     },
     {
@@ -284,12 +289,15 @@ describe("the parameter contract and catalogues an MCP-only client can read (#28
     const mcp = await connect(fake(), { catalogue });
     const props = (await mcp.listTools()).tools.find((t) => t.name === "transform").inputSchema.properties;
 
-    expect(props.parameters.description).toContain("resize: width(integer), fit(string=inside), withoutEnlargement(boolean=true)");
+    // #765: the set and the range are the catalogue's fields, not a reading of its prose.
+    expect(props.parameters.description).toContain(
+      "resize: width(integer 1..16384), fit(cover|contain|fill|inside|outside=inside), withoutEnlargement(boolean=true)"
+    );
     expect(props.parameters.description).toContain("analyze: maxOutputTokens(integer=1024)");
     // #557: what a required parameter means, the values a description lists, and an AI op's own parameters object
     // — whose model is a field of the tool, not a key to put inside it.
     expect(props.parameters.description).toContain(
-      "rotate: angle(integer, required: Degrees clockwise, -360 to 360), format(webp|jpeg|png, required), fit(cover|contain=inside)"
+      "rotate: angle(integer -360..360, required: Degrees clockwise), format(webp|jpeg|png, required), fit(cover|contain=inside)"
     );
     expect(props.parameters.description).toContain('upscale: e.g. {"scaleFactor": 2}.');
     expect(props.parameters.description).not.toContain("upscale: model");
@@ -552,6 +560,24 @@ describe("transform", () => {
     expect(res.structuredContent.error).toMatchObject({ code: "unsupported_format", param: "urls", retryable: false });
   });
 
+  it("an upload or URL taken but FAILED in ingest is a tool error with the asset's reason, and no job is submitted (#759)", async () => {
+    const failure = { code: "unsupported_format", message: "not an image this service can read", retryable: false };
+    const uploadMany = vi.fn(async (paths) => paths.map((name) => ({ name, asset: { id: "ast_f", status: "FAILED", error: failure } })));
+    const fromUrl = vi.fn(async (urls) => urls.map((url) => ({ url, asset: { id: "ast_g", status: "FAILED", error: failure } })));
+    const run = vi.fn();
+    const mcp = await connect(fake({ assets: { uploadMany, fromUrl }, ops: { run } }), { allowLocalFiles: true });
+    for (const [args, param] of [
+      [{ file_paths: ["/tmp/x.png", "/tmp/y.png"] }, "file_paths"],
+      [{ urls: ["https://93.184.216.34/a.png", "https://93.184.216.34/b.png"] }, "urls"]
+    ]) {
+      const res = await mcp.callTool({ name: "transform", arguments: { op: "upscale", wait: false, ...args } });
+      expect(res.isError).toBe(true);
+      expect(res.structuredContent.error).toMatchObject({ code: "unsupported_format", param, retryable: false });
+      expect(res.structuredContent.error.message).toMatch(/not an image this service can read/);
+    }
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("variants go into the one job and each item comes back labelled (#276)", async () => {
     const run = vi.fn(async () => ({ id: "job_v", status: "PENDING" }));
     const wait = vi.fn(async () => ({
@@ -607,6 +633,7 @@ describe("job_status / search_assets / run_preset", () => {
   });
 
   // #440 capped the items a job document inlines; #573: the note pointed an MCP-only agent at a REST call it cannot make.
+  // #751: the document says where its first page stops, so the first answer reads no listing.
   it("a job past the first page of items pages the rest through job_status itself (#440, #573)", async () => {
     const job = {
       id: "j",
@@ -614,6 +641,7 @@ describe("job_status / search_assets / run_preset", () => {
       totalItems: 4000,
       completedItems: 120,
       itemsTruncated: true,
+      itemsNextCursor: "c1",
       items: [
         { index: 0, status: "COMPLETED" },
         { index: 1, status: "PENDING" }
@@ -634,6 +662,7 @@ describe("job_status / search_assets / run_preset", () => {
     expect(first.itemsNote).toContain('job_status {"job_id": "j", "items_status": "FAILED"}');
     expect(first.itemsNote).not.toMatch(/GET \/api/);
     expect(first.items[0].index).toBe(0, "an item a filtered page returns has to say which it is");
+    expect(items).not.toHaveBeenCalled();
 
     const failed = (await mcp.callTool({ name: "job_status", arguments: { job_id: "j", items_status: "FAILED" } })).structuredContent;
     expect(items).toHaveBeenLastCalledWith("j", { status: "FAILED", cursor: undefined });
@@ -643,14 +672,17 @@ describe("job_status / search_assets / run_preset", () => {
     expect(last.items).toEqual([{ index: 3999, status: "FAILED", step: 1, failedStep: 1 }]);
     expect([last.itemsCursor, last.itemsNote]).toEqual([undefined, undefined]);
 
-    // A write tool's answer reads no listing: it names the job_status call that knows the cursor.
+    // A write tool's answer reads no listing: the document's cursor when it has one, else the job_status call that does.
+    let waited = job;
     const wait = vi.fn(async () => {
-      throw new JobFailedError(job, "Job j still PROCESSING after 5000 ms");
+      throw new JobFailedError(waited, "Job j still PROCESSING after 5000 ms");
     });
     const run = vi.fn(async () => ({ id: "j", status: "PENDING" }));
     const write = await connect(fake({ ops: { run }, jobs: { wait } }));
-    const handle = (await write.callTool({ name: "transform", arguments: { op: "upscale", asset_ids: ["a1"], wait_seconds: 5 } }))
-      .structuredContent;
+    const transform = { name: "transform", arguments: { op: "upscale", asset_ids: ["a1"], wait_seconds: 5 } };
+    expect((await write.callTool(transform)).structuredContent).toMatchObject({ itemsCursor: "c1" });
+    waited = { ...job, itemsNextCursor: undefined };
+    const handle = (await write.callTool(transform)).structuredContent;
     expect(handle.itemsNote).toContain('job_status {"job_id": "j"} answers with the itemsCursor');
   });
 
@@ -668,9 +700,8 @@ describe("job_status / search_assets / run_preset", () => {
       yield { index: 0, status: "COMPLETED", sourceAssetId: "ast_0", output: { tags: ["a"] } };
       yield { index: 140, status: "COMPLETED", sourceAssetId: "ast_140", output: { tags: ["z"] } };
     });
-    // The first page of items shown, read from the listing for its cursor (#573); the analyses still walk every page.
-    const items = vi.fn(async () => ({ items: [{ index: 0, status: "COMPLETED" }], meta: { hasMore: true, nextCursor: "c1" } }));
-    const mcp = await connect(fake({ jobs: { get, iterateItems, items } }));
+    // The first page of items is the document's own (#751); the analyses still walk every page.
+    const mcp = await connect(fake({ jobs: { get, iterateItems } }));
 
     const res = await mcp.callTool({ name: "job_status", arguments: { job_id: "j" } });
 

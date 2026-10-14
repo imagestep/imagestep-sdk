@@ -13,6 +13,9 @@ the context window — every tool takes and returns asset references (ids, sizes
 | `save_preset` | save a chain you will run again as a named, versioned preset — L1 `op` steps only, checked by the service before anything is stored; answers `slug@version` for `run_preset` to run pinned |
 | `send_feedback` | report what ImageStep could not do (`capability_gap` · `bug` · `other`) instead of working around it — free |
 
+Every tool declares an `outputSchema`: the keys it can answer with in `structuredContent`, all optional (which ones come
+back depends on the mode — a finished job, a wait that ran out, a dry run, a synchronous result, a refusal).
+
 Inputs are `asset_ids`, `urls` (public http(s), fetched and ingested by the service — never downloaded
 by this server) or — when the server runs on
 your machine over stdio — `file_paths`. Every tool that spends money has `dry_run` (exact price,

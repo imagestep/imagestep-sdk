@@ -4,6 +4,18 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
+## Unreleased
+
+### Changed
+
+- `models list` reads the API's camelCase model fields and `params` (its Supported params column is the keys of
+  `params`), ahead of the snake_case names going on 2027-01-12
+  (https://imagestep.dev/docs/changelog#2026-10-14-model-fields). `-o json` prints the answer as the API sent it.
+- `imagestep asset delete <id> -o json` prints the same shape for one id as for several, `{"deletedCount": 1,
+  "deleted": ["<id>"]}`. One id used to print `{"deleted": 1}`.
+- `imagestep asset upload` names the API's code beside a refused file's reason, e.g. `Rejected by server: File exceeds
+  100 MB size limit (payload_too_large)`.
+
 ## 0.1.1 — 2026-10-03
 
 ### Fixed

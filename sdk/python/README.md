@@ -3,7 +3,7 @@
 The image step for your automations — one API key, one job handle, one stable URL.
 Generate, edit, remove backgrounds, upscale, convert and read metadata from Python 3.10+.
 One runtime dependency (`httpx`), a sync and an async client, typed (TypedDicts generated from
-the API's OpenAPI document).
+the API's OpenAPI document — `from imagestep import Asset, Job, JobSummary`).
 
 ```python
 import os

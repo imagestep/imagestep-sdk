@@ -206,10 +206,10 @@ async function uploadSingleFile(fileData, stageData, index, total) {
 
   console.log(chalk.cyan(`\nProcessing (${index + 1}/${total}): ${fileName}`));
 
-  // Stage rejected this file (e.g., size limit exceeded)
-  if (stageData.error) {
-    console.log(chalk.red(`  Rejected by server: ${stageData.error}`));
-    return createUploadResult(baseInfo, { status: "Failed", error: stageData.error });
+  // Stage rejected this file: not an image, over the size limit (imagestep#755 — `failure` carries the code)
+  if (stageData.failure) {
+    console.log(chalk.red(`  Rejected by server: ${stageData.failure.message} (${stageData.failure.code})`));
+    return createUploadResult(baseInfo, { status: "Failed", error: stageData.failure.message });
   }
 
   // The account already holds these bytes (same SHA-1): nothing to PUT, and the row names the asset the
@@ -231,7 +231,7 @@ async function uploadSingleFile(fileData, stageData, index, total) {
       // staged again — a fresh URL for a fresh object — and sent once more (#524).
       logger.warn(`  ${fileName}: upload URL expired (403) — staging it again`);
       const [again] = await stageUploads([fileData]);
-      if (!again || again.error) throw new Error(again?.error || "stage-upload answered nothing", { cause: error });
+      if (!again || again.failure) throw new Error(again?.failure?.message || "stage-upload answered nothing", { cause: error });
       if (again.exists) return createUploadResult(baseInfo, { status: "Existing", assetId: again.existingAssetId });
       stageData = again;
       await uploadFile(fileData.path, stageData.url, mimeType, stageData.contentType);

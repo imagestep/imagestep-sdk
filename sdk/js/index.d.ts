@@ -1,5 +1,11 @@
 // Hand-written surface types for the JS SDK. Wire shapes come from the generated
 // types/openapi.d.ts (regenerated from the service's OpenAPI document; CI fails on drift).
+//
+// The rule (imagestep#760): an object the service sends or takes is `components["schemas"][...]`, never a copy of its
+// fields — a copy is a second source that drifts (`status()` lost the asset's `error`, `delete()` typed `deleted` as a
+// number). Hand-written shapes are only what this package assembles itself — a wrapper such as `{ url, asset, error }`,
+// an options object — or what the document does not describe (`/agent-guidelines`, the synchronous image face).
+// `test/types/surface.ts` assigns each method's result to its generated type, so tsc is red when they part.
 import type { components } from "./types/openapi.js";
 
 export type Asset = components["schemas"]["Asset"] & { publicUrl?: string | null };
@@ -22,7 +28,14 @@ export type WebhookEndpoint = components["schemas"]["WebhookEndpoint"];
 export type WebhookDelivery = components["schemas"]["WebhookDeliverySummary"];
 /** The delivery row's own name in the document (imagestep#436); `WebhookDelivery` stays as the word the docs use. */
 export type WebhookDeliverySummary = components["schemas"]["WebhookDeliverySummary"];
+/** A webhook delivery's body — narrow it on `type` and `data` follows (`creditsCharged` on `job.completed`, `itemIndex` on `job.item.failed`). */
+export type WebhookEvent =
+  components["schemas"]["JobEvent"] | components["schemas"]["JobItemEvent"] | components["schemas"]["WebhookTestEvent"];
 export type PageMeta = components["schemas"]["PageMeta"];
+/** What `images.metadata()` answers: the asset `image` fields measured from the bytes, and exiftool's map (imagestep#786). */
+export type ImageMetadata = components["schemas"]["ImageMetadata"];
+/** What `images.transform(…, { response: "url" })` answers instead of the bytes: a signed link and what is behind it. */
+export type SyncUrlResult = components["schemas"]["SyncUrlResult"];
 /** What `usage.get` answers: the window, its `total` and one `Bucket` per group (contract §11). */
 export type UsageSummary = components["schemas"]["Usage"];
 export type ApiError = components["schemas"]["ApiError"];
@@ -166,12 +179,19 @@ export function verifyWebhookSignature(
   secret: string,
   opts?: { toleranceSeconds?: number; now?: number }
 ): Promise<boolean>;
-export function constructWebhookEvent<T = Record<string, unknown>>(
+export function constructWebhookEvent(
   rawBody: string,
   header: string,
   secret: string,
   opts?: { toleranceSeconds?: number; now?: number }
-): Promise<{ id: string; type: string; createdAt: string; data: T }>;
+): Promise<WebhookEvent>;
+/** Your own type for `data`, as before `WebhookEvent` existed. */
+export function constructWebhookEvent<T>(
+  rawBody: string,
+  header: string,
+  secret: string,
+  opts?: { toleranceSeconds?: number; now?: number }
+): Promise<{ id: string; type: string; apiVersion: "v1"; createdAt: string; data: T }>;
 
 export interface UploadOptions {
   name?: string;
@@ -338,7 +358,7 @@ export interface TransformInput {
 }
 export interface TransformResult {
   bytes?: Uint8Array;
-  json?: Record<string, unknown>;
+  json?: SyncUrlResult;
   contentType: string;
   /** What the service measured (`X-ImageStep-Width` / `-Height`); null when it did not say. */
   width: number | null;
@@ -353,7 +373,7 @@ declare class Images {
   /** op → its `syncEndpoint`, straight from `GET /api/v1/ops`; never a list in this package. */
   syncEndpoints(): Promise<Record<string, string | null>>;
   supports(op: OpName | string): Promise<boolean>;
-  transform(op: OpName | string | null, input?: TransformInput): Promise<Uint8Array | Record<string, unknown>>;
+  transform(op: OpName | string | null, input?: TransformInput): Promise<Uint8Array | SyncUrlResult>;
   /** `transform`, plus the `contentType` and the size the service measured (imagestep#95). */
   transformResult(op: OpName | string | null, input?: TransformInput): Promise<TransformResult>;
   /** One template row → one PNG. A batch is a job: `ops.run("render_template", { templateId, items })`. */
@@ -363,7 +383,7 @@ declare class Images {
     opts?: { signal?: AbortSignal }
   ): Promise<Uint8Array | Record<string, unknown>>;
   /** EXIF, GPS, dimensions, format and SHA-1. Free, and it stores nothing. */
-  metadata(file: string | Blob | ArrayBuffer | Uint8Array, opts?: { signal?: AbortSignal }): Promise<Record<string, unknown>>;
+  metadata(file: string | Blob | ArrayBuffer | Uint8Array, opts?: { signal?: AbortSignal }): Promise<ImageMetadata>;
 }
 
 declare class Assets {
@@ -372,7 +392,7 @@ declare class Assets {
   fromUrl(
     urls: string[],
     opts?: { collection?: string; tags?: string[]; retentionDays?: number; wait?: boolean; signal?: AbortSignal }
-  ): Promise<Array<{ url: string; asset?: Asset; error?: { code: string; message: string; retryable: boolean; param?: string } }>>;
+  ): Promise<Array<{ url: string; asset?: Asset; error?: components["schemas"]["ItemError"] }>>;
   /**
    * Upload many files at once (imagestep#525): one stage and one finish call per 500, `concurrency` PUTs at a time (default
    * 4), one status call per tick while they ingest. One result per input, in order.
@@ -388,13 +408,13 @@ declare class Assets {
       reuseExisting?: boolean;
       signal?: AbortSignal;
     }
-  ): Promise<Array<{ name: string; asset?: Asset; error?: { code: string; message: string; retryable: boolean; param?: string } }>>;
+  ): Promise<Array<{ name: string; asset?: Asset; error?: components["schemas"]["ItemError"] }>>;
   waitReady(id: string, opts?: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal }): Promise<Asset>;
-  /** Ingest state of up to 100 of your assets in one call (imagestep#233); ids that are not yours are absent. */
-  status(
-    ids: string | string[],
-    opts?: { signal?: AbortSignal }
-  ): Promise<Array<{ id: string; status: "PROCESSING" | "DONE" | "FAILED"; width?: number; height?: number }>>;
+  /**
+   * Ingest state of up to 100 of your assets in one call (imagestep#233); ids that are not yours are absent. A FAILED
+   * one carries `error` — why, and whether uploading the file again could succeed (imagestep#734).
+   */
+  status(ids: string | string[], opts?: { signal?: AbortSignal }): Promise<Array<components["schemas"]["AssetStatus"]>>;
   /** The asset's private bytes: follows the signed redirect without sending the API key to storage (imagestep#233). */
   download(
     id: string,
@@ -426,7 +446,11 @@ declare class Assets {
   setCollection(ids: string | string[], collection: string | null): Promise<Asset[]>;
   /** Replace the tags on assets; `[]` clears them (imagestep#334). */
   tag(ids: string | string[], tags: string[]): Promise<Asset[]>;
-  delete(ids: string | string[]): Promise<{ deleted?: number } & Record<string, unknown>>;
+  /**
+   * One id or several answer the batch result: `deleted` lists the ids, `deletedCount` counts them (imagestep#758).
+   * One id is `DELETE /assets/{id}` and throws `404 asset_not_found` when it is not there; several skip those.
+   */
+  delete(ids: string | string[]): Promise<components["schemas"]["BatchDeleteResultDTO"]>;
 }
 
 declare class Jobs {
@@ -509,7 +533,7 @@ declare class Presets {
    * the way past the 50-version ceiling a further `update` is refused at. The current version cannot be deleted.
    */
   deleteVersion(slug: string, version: number): Promise<void>;
-  import(presets: PresetData[]): Promise<unknown>;
+  import(presets: PresetData[]): Promise<components["schemas"]["BatchImportResultDTOPresetData"]>;
   run<
     O extends {
       wait?: boolean | WaitOptions;
@@ -573,25 +597,23 @@ export interface AgentGuidelines {
   markdown: string;
 }
 
+type FeedbackRequest = components["schemas"]["FeedbackRequest"];
+/**
+ * The report — `FeedbackRequest`'s fields, each typed from it and held equal to it by `test/types/surface.ts` — plus the
+ * two request options. Spelled out rather than an intersection because /docs/sdk lists a bag's keys from this file's
+ * syntax (apps/console/scripts/lib/reference-sdk.mjs), and it cannot see into the generated document.
+ */
 export interface FeedbackReport {
-  kind: "capability_gap" | "bug" | "other";
-  message: string;
-  op?: string;
-  context?: Record<string, unknown>;
+  kind: FeedbackRequest["kind"];
+  message: FeedbackRequest["message"];
+  op?: FeedbackRequest["op"];
+  context?: FeedbackRequest["context"];
   idempotencyKey?: string;
   signal?: AbortSignal;
 }
 
-export interface Feedback {
-  id: string;
-  kind: string;
-  op?: string;
-  message: string;
-  context?: Record<string, unknown>;
-  /** The key it was reported with; absent when a signed-in console session filed it. */
-  apiKeyId?: string;
-  createdAt: string;
-}
+/** A filed report. `apiKeyId` is the key it was reported with; absent when a signed-in console session filed it. */
+export type Feedback = components["schemas"]["Feedback"];
 
 export class Agent {
   guidelines(): Promise<AgentGuidelines>;

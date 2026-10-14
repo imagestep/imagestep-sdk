@@ -48,8 +48,8 @@ function formatModalities(model) {
     return chalk.yellow(model.modality);
   }
 
-  const inputModalities = Array.isArray(model.input_modalities) ? model.input_modalities.join(",") : null;
-  const outputModalities = Array.isArray(model.output_modalities) ? model.output_modalities.join(",") : null;
+  const inputModalities = Array.isArray(model.inputModalities) ? model.inputModalities.join(",") : null;
+  const outputModalities = Array.isArray(model.outputModalities) ? model.outputModalities.join(",") : null;
 
   if (inputModalities && outputModalities) {
     return chalk.yellow(`${inputModalities} -> ${outputModalities}`);
@@ -85,17 +85,17 @@ modelsCommand
             name: model.name || chalk.gray("N/A"),
             categories: formatList(model.categories, chalk.yellow),
             modality: formatModalities(model),
-            contextLength: model.context_length || model.contextLength || chalk.gray("N/A"),
-            structuredOutput: formatBoolean(model.support_structured_output),
-            imageRequired: formatBoolean(model.image_required),
-            maxInputImages: model.max_input_images || chalk.gray("N/A"),
-            supportedParams: formatList(model.supported_parameters),
-            promptPrice: model.prompt_price ? chalk.green(`$${model.prompt_price}/M`) : chalk.gray("N/A"),
-            completionPrice: model.completion_price ? chalk.green(`$${model.completion_price}/M`) : chalk.gray("N/A")
+            contextLength: model.contextLength || chalk.gray("N/A"),
+            structuredOutput: formatBoolean(model.structuredOutput),
+            imageRequired: formatBoolean(model.imageRequired),
+            maxInputImages: model.maxInputImages || chalk.gray("N/A"),
+            supportedParams: formatList(Object.keys(model.params || {})),
+            promptPrice: model.promptPrice ? chalk.green(`$${model.promptPrice}/M`) : chalk.gray("N/A"),
+            completionPrice: model.completionPrice ? chalk.green(`$${model.completionPrice}/M`) : chalk.gray("N/A")
           };
 
           // Both modes are priced per image: an image op per output, analyze per analyzed image (imagestep#202).
-          const imagePrice = model.image_price || model.image_price_range;
+          const imagePrice = model.priceRange;
           baseModel.imagePrice = imagePrice ? chalk.green(imagePrice) : chalk.gray("N/A");
 
           return baseModel;

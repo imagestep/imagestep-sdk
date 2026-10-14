@@ -18,10 +18,15 @@ export interface paths {
          *     `400 invalid_param`, with the models that fit in `details.allowed`. Leave `model` out and the op's
          *     `defaultModel` runs.
          *
-         *     Each entry carries its price per image after markup (`image_price_range`) beside the provider's own
-         *     list price (`provider_price`, `provider_price_range`), the parameters it takes, and
-         *     `max_input_edge` / `max_input_images` — how big an input it is handed and how many images one call
-         *     takes (what bounds a preset's reference images). The exact price of one request is the dry run.
+         *     Each entry carries its price per image after markup (`priceRange`) beside the provider's own
+         *     list price (`providerPrice`, `providerPriceRange`), the parameters it takes (`params`, in the op
+         *     catalogue's shape), and `maxInputEdge` / `maxInputImages` — how big an input it is handed and how
+         *     many images one call takes (what bounds a preset's reference images). The exact price of one
+         *     request is the dry run.
+         *
+         *     The snake_case names, `parameters`, `supported_parameters` and `created` are deprecated and go on
+         *     2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-model-fields): until then every answer
+         *     carries both names, and `Deprecation` / `Sunset` / `Link` headers that say so.
          *
          *     USE THIS WHEN:
          *     - Choosing a `model` for an AI op, or checking one before a submit
@@ -368,7 +373,7 @@ export interface paths {
          *     - Painting thumbnails for a listing page (one call per page, not one per image)
          *
          *     DO NOT USE WHEN:
-         *     - Waiting for assets to finish ingest → POST /api/v1/assets/status (nothing signed, no audit row)
+         *     - Waiting for assets to finish ingest → POST /api/v1/assets/status (nothing signed)
          *     - You want the full-size bytes → GET /api/v1/assets/{id}/content
          *     - You want a stable public URL → publish the asset and use `publicUrl`
          */
@@ -552,7 +557,7 @@ export interface paths {
          *     way the contract describes, or you were about to work around ImageStep with
          *     something local. Reporting the gap is the alternative to routing around it.
          *
-         *     Free: no credit, no job, no rate-limit budget beyond the shared API one.
+         *     Free: no credit, no job, no rate-limit budget beyond the shared API one, and at most 200 reports per account per UTC day — past that, `429 rate_limited` until midnight UTC.
          *     `kind` is `capability_gap` (ImageStep cannot do it at all), `bug` (it did not
          *     behave the way the contract says) or `other`; `message` says what you were trying
          *     to do. `op` names the operation when there is one and is **not** checked against
@@ -561,7 +566,7 @@ export interface paths {
          *
          *     The report comes back (`201`) with the `apiKeyId` it was filed under, so an account
          *     running one key per agent can tell whose report it is. It is your account's data:
-         *     exported with it and deleted with it.
+         *     exported with it, and deleted with it or 365 days after it was filed, whichever comes first.
          */
         post: operations["submit_1"];
         delete?: never;
@@ -1457,7 +1462,108 @@ export interface paths {
         trace?: never;
     };
 }
-export type webhooks = Record<string, never>;
+export interface webhooks {
+    "job.completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * job.completed
+         * @description Signed with the endpoint's secret in `ImageStep-Signature`; the same event id on every retry. Answer any 2xx to acknowledge it.
+         */
+        post: operations["webhook_job_completed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "job.failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * job.failed
+         * @description Signed with the endpoint's secret in `ImageStep-Signature`; the same event id on every retry. Answer any 2xx to acknowledge it.
+         */
+        post: operations["webhook_job_failed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "job.item.completed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * job.item.completed
+         * @description Signed with the endpoint's secret in `ImageStep-Signature`; the same event id on every retry. Answer any 2xx to acknowledge it.
+         */
+        post: operations["webhook_job_item_completed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "job.item.failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * job.item.failed
+         * @description Signed with the endpoint's secret in `ImageStep-Signature`; the same event id on every retry. Answer any 2xx to acknowledge it.
+         */
+        post: operations["webhook_job_item_failed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "webhook.test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * webhook.test
+         * @description Signed with the endpoint's secret in `ImageStep-Signature`; the same event id on every retry. Answer any 2xx to acknowledge it.
+         */
+        post: operations["webhook_webhook_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+}
 export interface components {
     schemas: {
         /** @description Structured error. Present on every 4xx/5xx response, absent on success. */
@@ -1490,12 +1596,12 @@ export interface components {
              * @description Whether repeating the same request unchanged could succeed. The whole reason this field exists is that an agent cannot infer it from the status code.
              * @example false
              */
-            retryable?: boolean;
+            retryable: boolean;
         };
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseAsset: {
             /** @description The response data payload */
-            data?: components["schemas"]["Asset"];
+            data: components["schemas"]["Asset"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1509,7 +1615,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1520,7 +1626,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseAssetStatuses: {
             /** @description The response data payload */
-            data?: components["schemas"]["AssetStatuses"];
+            data: components["schemas"]["AssetStatuses"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1534,7 +1640,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1545,7 +1651,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseBatchDeleteResultDTO: {
             /** @description The response data payload */
-            data?: components["schemas"]["BatchDeleteResultDTO"];
+            data: components["schemas"]["BatchDeleteResultDTO"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1559,7 +1665,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1570,7 +1676,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseBatchImportResultDTOPresetData: {
             /** @description The response data payload */
-            data?: components["schemas"]["BatchImportResultDTOPresetData"];
+            data: components["schemas"]["BatchImportResultDTOPresetData"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1584,7 +1690,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1595,7 +1701,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseBatchImportResultDTOTemplateData: {
             /** @description The response data payload */
-            data?: components["schemas"]["BatchImportResultDTOTemplateData"];
+            data: components["schemas"]["BatchImportResultDTOTemplateData"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1609,7 +1715,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1620,7 +1726,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseCollectionRenamed: {
             /** @description The response data payload */
-            data?: components["schemas"]["CollectionRenamed"];
+            data: components["schemas"]["CollectionRenamed"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1634,7 +1740,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1645,7 +1751,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseFeedback: {
             /** @description The response data payload */
-            data?: components["schemas"]["Feedback"];
+            data: components["schemas"]["Feedback"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1659,7 +1765,32 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
+            /**
+             * Format: date-time
+             * @description Timestamp when the response was generated
+             * @example 2024-01-15T10:30:45.123Z
+             */
+            timestamp?: string;
+        };
+        /** @description Standard API response wrapper containing status, message, data and timestamp */
+        ApiResponseImageMetadata: {
+            /** @description The response data payload */
+            data: components["schemas"]["ImageMetadata"];
+            /** @description Structured error; present exactly when the request failed */
+            error?: components["schemas"]["ApiError"];
+            /**
+             * @description Human-readable message about the response
+             * @example Operation completed successfully
+             */
+            message?: string;
+            /** @description Pagination metadata for list responses */
+            meta?: components["schemas"]["PageMeta"];
+            /**
+             * @description Indicates if the request was successful
+             * @example true
+             */
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1670,7 +1801,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseJob: {
             /** @description The response data payload */
-            data?: components["schemas"]["Job"];
+            data: components["schemas"]["Job"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1684,7 +1815,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1695,7 +1826,7 @@ export interface components {
         /** @description The dry run's answer: `data` is the estimate; nothing was created */
         ApiResponseJobEstimate: {
             /** @description The response data payload */
-            data?: components["schemas"]["JobEstimate"];
+            data: components["schemas"]["JobEstimate"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1709,7 +1840,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1720,7 +1851,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListAsset: {
             /** @description The response data payload */
-            data?: components["schemas"]["Asset"][];
+            data: components["schemas"]["Asset"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1734,7 +1865,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1745,7 +1876,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListAssetSummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["AssetSummary"][];
+            data: components["schemas"]["AssetSummary"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1759,7 +1890,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1770,7 +1901,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListCollectionSummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["CollectionSummary"][];
+            data: components["schemas"]["CollectionSummary"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1784,7 +1915,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1795,7 +1926,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListFeedback: {
             /** @description The response data payload */
-            data?: components["schemas"]["Feedback"][];
+            data: components["schemas"]["Feedback"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1809,7 +1940,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1820,7 +1951,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListFinishedUpload: {
             /** @description The response data payload */
-            data?: components["schemas"]["FinishedUpload"][];
+            data: components["schemas"]["FinishedUpload"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1834,7 +1965,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1845,7 +1976,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListFromUrlResult: {
             /** @description The response data payload */
-            data?: components["schemas"]["FromUrlResult"][];
+            data: components["schemas"]["FromUrlResult"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1859,7 +1990,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1870,7 +2001,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListJobCount: {
             /** @description The response data payload */
-            data?: components["schemas"]["JobCount"][];
+            data: components["schemas"]["JobCount"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1884,7 +2015,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1895,7 +2026,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListJobItem: {
             /** @description The response data payload */
-            data?: components["schemas"]["JobItem"][];
+            data: components["schemas"]["JobItem"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1909,7 +2040,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1920,7 +2051,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListJobSummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["JobSummary"][];
+            data: components["schemas"]["JobSummary"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1934,7 +2065,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1945,7 +2076,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListModelDTO: {
             /** @description The response data payload */
-            data?: components["schemas"]["ModelDTO"][];
+            data: components["schemas"]["ModelDTO"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1959,7 +2090,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1970,7 +2101,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListOpDefinition: {
             /** @description The response data payload */
-            data?: components["schemas"]["OpDefinition"][];
+            data: components["schemas"]["OpDefinition"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -1984,7 +2115,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -1995,7 +2126,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListPresetData: {
             /** @description The response data payload */
-            data?: components["schemas"]["PresetData"][];
+            data: components["schemas"]["PresetData"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2009,7 +2140,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2020,7 +2151,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListStageUploadResponse: {
             /** @description The response data payload */
-            data?: components["schemas"]["StageUploadResponse"][];
+            data: components["schemas"]["StageUploadResponse"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2034,7 +2165,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2045,7 +2176,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListTemplateData: {
             /** @description The response data payload */
-            data?: components["schemas"]["TemplateData"][];
+            data: components["schemas"]["TemplateData"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2059,7 +2190,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2070,7 +2201,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListTemplateSummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["TemplateSummary"][];
+            data: components["schemas"]["TemplateSummary"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2084,7 +2215,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2095,7 +2226,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListWebhookDeliverySummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["WebhookDeliverySummary"][];
+            data: components["schemas"]["WebhookDeliverySummary"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2109,7 +2240,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2120,7 +2251,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseListWebhookEndpoint: {
             /** @description The response data payload */
-            data?: components["schemas"]["WebhookEndpoint"][];
+            data: components["schemas"]["WebhookEndpoint"][];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2134,59 +2265,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
-            /**
-             * Format: date-time
-             * @description Timestamp when the response was generated
-             * @example 2024-01-15T10:30:45.123Z
-             */
-            timestamp?: string;
-        };
-        /** @description Standard API response wrapper containing status, message, data and timestamp */
-        ApiResponseMapStringObject: {
-            /** @description The response data payload */
-            data?: {
-                [key: string]: unknown;
-            };
-            /** @description Structured error; present exactly when the request failed */
-            error?: components["schemas"]["ApiError"];
-            /**
-             * @description Human-readable message about the response
-             * @example Operation completed successfully
-             */
-            message?: string;
-            /** @description Pagination metadata for list responses */
-            meta?: components["schemas"]["PageMeta"];
-            /**
-             * @description Indicates if the request was successful
-             * @example true
-             */
-            success?: boolean;
-            /**
-             * Format: date-time
-             * @description Timestamp when the response was generated
-             * @example 2024-01-15T10:30:45.123Z
-             */
-            timestamp?: string;
-        };
-        /** @description Standard API response wrapper containing status, message, data and timestamp */
-        ApiResponseObject: {
-            /** @description The response data payload */
-            data?: unknown;
-            /** @description Structured error; present exactly when the request failed */
-            error?: components["schemas"]["ApiError"];
-            /**
-             * @description Human-readable message about the response
-             * @example Operation completed successfully
-             */
-            message?: string;
-            /** @description Pagination metadata for list responses */
-            meta?: components["schemas"]["PageMeta"];
-            /**
-             * @description Indicates if the request was successful
-             * @example true
-             */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2197,7 +2276,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseOpDefinition: {
             /** @description The response data payload */
-            data?: components["schemas"]["OpDefinition"];
+            data: components["schemas"]["OpDefinition"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2211,7 +2290,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2222,7 +2301,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponsePresetData: {
             /** @description The response data payload */
-            data?: components["schemas"]["PresetData"];
+            data: components["schemas"]["PresetData"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2236,7 +2315,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2247,7 +2326,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponsePreviewUrls: {
             /** @description The response data payload */
-            data?: components["schemas"]["PreviewUrls"];
+            data: components["schemas"]["PreviewUrls"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2261,7 +2340,32 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
+            /**
+             * Format: date-time
+             * @description Timestamp when the response was generated
+             * @example 2024-01-15T10:30:45.123Z
+             */
+            timestamp?: string;
+        };
+        /** @description Standard API response wrapper containing status, message, data and timestamp */
+        ApiResponseSyncUrlResult: {
+            /** @description The response data payload */
+            data: components["schemas"]["SyncUrlResult"];
+            /** @description Structured error; present exactly when the request failed */
+            error?: components["schemas"]["ApiError"];
+            /**
+             * @description Human-readable message about the response
+             * @example Operation completed successfully
+             */
+            message?: string;
+            /** @description Pagination metadata for list responses */
+            meta?: components["schemas"]["PageMeta"];
+            /**
+             * @description Indicates if the request was successful
+             * @example true
+             */
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2272,7 +2376,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseTemplateData: {
             /** @description The response data payload */
-            data?: components["schemas"]["TemplateData"];
+            data: components["schemas"]["TemplateData"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2286,7 +2390,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2297,7 +2401,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseUploadedAsset: {
             /** @description The response data payload */
-            data?: components["schemas"]["UploadedAsset"];
+            data: components["schemas"]["UploadedAsset"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2311,7 +2415,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2322,7 +2426,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseUsage: {
             /** @description The response data payload */
-            data?: components["schemas"]["Usage"];
+            data: components["schemas"]["Usage"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2336,7 +2440,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2347,7 +2451,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseWebhookDeliverySummary: {
             /** @description The response data payload */
-            data?: components["schemas"]["WebhookDeliverySummary"];
+            data: components["schemas"]["WebhookDeliverySummary"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2361,7 +2465,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2372,7 +2476,7 @@ export interface components {
         /** @description Standard API response wrapper containing status, message, data and timestamp */
         ApiResponseWebhookEndpoint: {
             /** @description The response data payload */
-            data?: components["schemas"]["WebhookEndpoint"];
+            data: components["schemas"]["WebhookEndpoint"];
             /** @description Structured error; present exactly when the request failed */
             error?: components["schemas"]["ApiError"];
             /**
@@ -2386,7 +2490,7 @@ export interface components {
              * @description Indicates if the request was successful
              * @example true
              */
-            success?: boolean;
+            success: boolean;
             /**
              * Format: date-time
              * @description Timestamp when the response was generated
@@ -2400,31 +2504,32 @@ export interface components {
             collection?: string;
             /**
              * Format: int64
-             * @description Epoch millis; the library is listed newest-created first
+             * @description Epoch millis; the library is listed newest-created first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             createdAt?: number;
-            error?: components["schemas"]["AssetError"];
+            /** @description Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed */
+            error?: components["schemas"]["ItemError"];
             /**
              * Format: int64
-             * @description Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created
+             * @description Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             expiresAt?: number;
             /** @description Asset ID: `ast_` and 32 hex digits */
-            id?: string;
+            id: string;
             /** @description What the asset is, as ingest measured it */
             image?: components["schemas"]["AssetImage"];
             /** @description How a job made it — absent on an upload. Written with the asset and never changed */
             lineage?: components["schemas"]["AssetLineage"];
-            /** @description Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map POST /api/v1/images/metadata answers with. Absent until ingest has read it */
+            /** @description Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map POST /api/v1/images/metadata answers with; every value is a string. Absent until ingest has read it */
             metadata?: {
-                [key: string]: unknown;
+                [key: string]: string;
             };
             /** @description Display name — an upload's file name without its extension, cut to 200 characters. Not unique; `id` is what addresses the asset */
             name?: string;
             /** @description The CDN URL of the full-size image, once published; absent otherwise. Unpublishing or deleting takes it down within about two minutes */
             readonly publicUrl?: string;
             /** @description Whether it is on the public CDN — `publicUrl` is there when it is. Set with POST /api/v1/assets/update */
-            published?: boolean;
+            published: boolean;
             /**
              * @description Where it came from: `upload`, or the kind of job that made it
              * @enum {string}
@@ -2434,17 +2539,17 @@ export interface components {
              * @description PROCESSING while ingest reads the bytes; DONE once it has measured them — the asset can then be processed and published; FAILED for an upload ingest could not read, kept a day so you can see why
              * @enum {string}
              */
-            status?: "PROCESSING" | "DONE" | "FAILED";
+            status: "PROCESSING" | "DONE" | "FAILED";
             /** @description Your own labels, [] when there are none — what GET /api/v1/assets?tag= matches. A default analyze appends the tags and objects it found after yours */
             tags?: string[];
             /**
              * Format: int64
-             * @description When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
+             * @description When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             takenAt?: number;
             /**
              * Format: int64
-             * @description Epoch millis of the last change you made to a label — name, collection, tags, published — or the creation time until then. Ingest and analysis do not move it
+             * @description Epoch millis of the last change you made to a label — name, collection, tags, published — or the creation time until then. Ingest and analysis do not move it. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             updatedAt?: number;
         };
@@ -2464,12 +2569,12 @@ export interface components {
         /**
          * @description Batch update request with asset IDs and properties to update
          * @example {
+         *       "collection": "shoot-01",
          *       "ids": [
          *         "ast_…",
          *         "ast_…"
          *       ],
-         *       "published": true,
-         *       "collection": "shoot-01"
+         *       "published": true
          *     }
          */
         AssetBatchUpdateRequest: {
@@ -2490,18 +2595,6 @@ export interface components {
              *     ]
              */
             tags?: string[];
-        };
-        /** @description Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed */
-        AssetError: {
-            /**
-             * @description An `ErrorCode`, as in an API error
-             * @example unsupported_format
-             */
-            code?: string;
-            /** @description What was wrong, in the decoder's words when the file is the problem */
-            message?: string;
-            /** @description Whether uploading the same file again could succeed */
-            retryable?: boolean;
         };
         /** @description What an asset is, as ingest measured it: type, pixel size, bytes, SHA-1, and the facts a caller would otherwise download the image to learn. A derived fact is absent when it could not be derived */
         AssetImage: {
@@ -2526,7 +2619,7 @@ export interface components {
              * Format: int32
              * @description Pixel height; 0 until ingest has measured it
              */
-            height?: number;
+            height: number;
             /** @description The type it is stored as, e.g. image/jpeg */
             mimeType?: string;
             /** @description Whether every pixel is fully opaque — false only when the alpha channel is actually used */
@@ -2544,14 +2637,14 @@ export interface components {
              * Format: int64
              * @description Stored size in bytes; 0 until ingest has measured it
              */
-            size?: number;
+            size: number;
             /** @description A ThumbHash placeholder — smaller than blurhash, closer to the picture, and it keeps alpha */
             thumbhash?: string;
             /**
              * Format: int32
              * @description Pixel width; 0 until ingest has measured it
              */
-            width?: number;
+            width: number;
         };
         /** @description The run that produced an asset: the job, what it ran, and what it was made from */
         AssetLineage: {
@@ -2591,19 +2684,19 @@ export interface components {
         /** @description One asset's ingest state */
         AssetStatus: {
             /** @description Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed */
-            error?: components["schemas"]["AssetError"];
+            error?: components["schemas"]["ItemError"];
             /**
              * Format: int32
              * @description Pixel height, once ingest has measured it
              */
             height?: number;
             /** @description Asset ID */
-            id?: string;
+            id: string;
             /**
              * @description PROCESSING while ingest runs; DONE and FAILED are final
              * @enum {string}
              */
-            status?: "PROCESSING" | "DONE" | "FAILED";
+            status: "PROCESSING" | "DONE" | "FAILED";
             /**
              * Format: int32
              * @description Pixel width, once ingest has measured it
@@ -2626,14 +2719,14 @@ export interface components {
             collection?: string;
             /**
              * Format: int64
-             * @description Epoch millis; the list is ordered by it, newest first
+             * @description Epoch millis; the list is ordered by it, newest first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             createdAt?: number;
             /** @description Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed */
-            error?: components["schemas"]["AssetError"];
+            error?: components["schemas"]["ItemError"];
             /**
              * Format: int64
-             * @description Epoch millis when the asset and its objects are deleted
+             * @description Epoch millis when the asset and its objects are deleted. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             expiresAt?: number;
             /**
@@ -2642,7 +2735,7 @@ export interface components {
              */
             height?: number;
             /** @description Asset ID */
-            id?: string;
+            id: string;
             /** @description image.mimeType */
             mimeType?: string;
             /** @description Display name — an upload's file name without its extension, cut to 200 characters */
@@ -2650,7 +2743,7 @@ export interface components {
             /** @description The CDN URL once published */
             publicUrl?: string;
             /** @description Whether it is on the public CDN; `publicUrl` is there when it is */
-            published?: boolean;
+            published: boolean;
             /**
              * Format: int64
              * @description image.size: the stored bytes
@@ -2665,7 +2758,7 @@ export interface components {
              * @description PROCESSING until ingest measured it, then DONE or FAILED
              * @enum {string}
              */
-            status?: "PROCESSING" | "DONE" | "FAILED";
+            status: "PROCESSING" | "DONE" | "FAILED";
             /** @description Your tags; [] when there are none */
             tags?: string[];
             /**
@@ -2683,31 +2776,41 @@ export interface components {
              * @description Number of items deleted
              * @example 3
              */
-            deletedCount?: number;
+            deletedCount: number;
         };
-        /** @description What an import did: the entries that landed, and one line for each that did not */
+        /** @description What an import did: the entries that landed, and one failure for each that did not */
         BatchImportResultDTOPresetData: {
             /** @description The created resources, as saved, in the order sent */
             data?: components["schemas"]["PresetData"][];
-            /** @description One line per refused entry, naming its index and why (`Preset at index 2 'Hero': …`). Absent when every entry landed. */
+            /**
+             * @deprecated
+             * @description Deprecated: the same refusals as `failures`, one English line each (`Preset at index 2 'Hero': …`); goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failures`, which has the index and a `code` to branch on (imagestep#755). Absent when every entry landed.
+             */
             errors?: string[];
+            /** @description One per refused entry, in the order sent: its `index` in what you sent, and why — the fields of an `ItemError` (imagestep#755). Absent when every entry landed. */
+            failures?: components["schemas"]["ImportFailure"][];
             /**
              * Format: int32
              * @description How many entries were created — the length of `data`
              */
-            importedCount?: number;
+            importedCount: number;
         };
-        /** @description What an import did: the entries that landed, and one line for each that did not */
+        /** @description What an import did: the entries that landed, and one failure for each that did not */
         BatchImportResultDTOTemplateData: {
             /** @description The created resources, as saved, in the order sent */
             data?: components["schemas"]["TemplateData"][];
-            /** @description One line per refused entry, naming its index and why (`Preset at index 2 'Hero': …`). Absent when every entry landed. */
+            /**
+             * @deprecated
+             * @description Deprecated: the same refusals as `failures`, one English line each (`Preset at index 2 'Hero': …`); goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failures`, which has the index and a `code` to branch on (imagestep#755). Absent when every entry landed.
+             */
             errors?: string[];
+            /** @description One per refused entry, in the order sent: its `index` in what you sent, and why — the fields of an `ItemError` (imagestep#755). Absent when every entry landed. */
+            failures?: components["schemas"]["ImportFailure"][];
             /**
              * Format: int32
              * @description How many entries were created — the length of `data`
              */
-            importedCount?: number;
+            importedCount: number;
         };
         /** @description What was spent in one group, or in the whole window */
         Bucket: {
@@ -2715,24 +2818,24 @@ export interface components {
              * Format: int64
              * @description Credits charged, for the jobs created in the window
              */
-            credits?: number;
+            credits: number;
             /**
              * Format: int64
              * @description Items of those jobs that settled
              */
-            items?: number;
+            items: number;
             /**
              * Format: int64
              * @description Jobs created in the window
              */
-            jobs?: number;
+            jobs: number;
             /** @description The group: an op name (or the raw type of a job submitted without one), an API key id or `console`, or a UTC date `YYYY-MM-DD`. Absent on the total */
             key?: string;
             /**
              * Format: int64
              * @description Synchronous calls that succeeded and counted against the processing allowance
              */
-            sync?: number;
+            sync: number;
         };
         /** @description What a rename did */
         CollectionRenamed: {
@@ -2744,7 +2847,7 @@ export interface components {
              * Format: int32
              * @description How many assets moved; 0 when nothing was in `from`
              */
-            updated?: number;
+            updated: number;
         };
         /** @description One collection: its name, how many of your assets are in it, and when the latest was added */
         CollectionSummary: {
@@ -2757,10 +2860,10 @@ export interface components {
              * Format: int64
              * @description Assets in it — the total GET /api/v1/assets?collection= reports
              */
-            count?: number;
+            count: number;
             /**
              * Format: int64
-             * @description Epoch millis the newest asset in it was created; the list is ordered by it, newest first
+             * @description Epoch millis the newest asset in it was created; the list is ordered by it, newest first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             lastCreatedAt?: number;
         };
@@ -2773,14 +2876,8 @@ export interface components {
             description?: string;
             /** @description Update only — ignored on create, where an endpoint starts enabled. `false` pauses deliveries; `true` resumes them and clears an automatic disable. */
             enabled?: boolean;
-            /**
-             * @description Event types to receive. Omit it, or send `[]`, for every job-level event (`job.completed`, `job.failed`); the per-item events (`job.item.completed`, `job.item.failed`) are opt-in, because a 500-item job would otherwise be 500 deliveries nobody asked for. Any other value is `400 invalid_param`.
-             * @example [
-             *       "job.completed",
-             *       "job.failed"
-             *     ]
-             */
-            events?: string[];
+            /** @description Event types to receive. Omit it, or send `[]`, for every job-level event (`job.completed`, `job.failed`); the per-item events (`job.item.completed`, `job.item.failed`) are opt-in, because a 500-item job would otherwise be 500 deliveries nobody asked for. Any other value is `400 invalid_param`. */
+            events?: ("job.completed" | "job.failed" | "job.item.completed" | "job.item.failed")[];
             /**
              * @description Where to POST events: an `https://` URL on port 443 whose host resolves to a public address. Required on create; on update, send it only to change it.
              * @example https://example.com/hooks/imagestep
@@ -2805,20 +2902,25 @@ export interface components {
             context?: {
                 [key: string]: unknown;
             };
-            /** Format: date-time */
-            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description When it was filed
+             */
+            createdAt: string;
             /** @description The report's id, `fbk_…` */
-            id?: string;
-            /** @description capability_gap · bug · other, stored lower-case */
-            kind?: string;
+            id: string;
+            /**
+             * @description What kind of report it is, stored lower-case
+             * @enum {string}
+             */
+            kind: "capability_gap" | "bug" | "other";
             /** @description What the reporter wrote, trimmed */
-            message?: string;
+            message: string;
             /**
              * @description The op this is about, when it is about one.
              * @example remove_bg
              */
             op?: string;
-            userId?: string;
         };
         /** @description A report from an agent about something ImageStep could not do. */
         FeedbackRequest: {
@@ -2826,8 +2928,11 @@ export interface components {
             context?: {
                 [key: string]: unknown;
             };
-            /** @description capability_gap · bug · other, matched case-insensitively */
-            kind: string;
+            /**
+             * @description What kind of report it is, matched case-insensitively
+             * @enum {string}
+             */
+            kind: "capability_gap" | "bug" | "other";
             /** @description What you were trying to do and what stopped you; at most 4000 characters. */
             message: string;
             /**
@@ -2839,14 +2944,14 @@ export interface components {
         /** @description One asset finish-upload created */
         FinishedUpload: {
             /** @description The new asset's ID */
-            id?: string;
+            id: string;
             /** @description Its name: the file name without its extension */
             name?: string;
             /**
              * @description PROCESSING until ingest has measured it — poll POST /api/v1/assets/status
              * @enum {string}
              */
-            status?: "PROCESSING" | "DONE" | "FAILED";
+            status: "PROCESSING" | "DONE" | "FAILED";
         };
         /** @description One staged object to turn into an asset */
         FinishUploadRequest: {
@@ -2907,7 +3012,7 @@ export interface components {
         };
         /** @description One URL's outcome: an asset (id, status, name, existing) or an error */
         FromUrlResult: {
-            /** @description Why this URL did not become an asset; absent when it did */
+            /** @description Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable) */
             error?: components["schemas"]["ItemError"];
             /** @description true when the bytes were already an asset — a DONE one you held, or the one an earlier URL in this request became — and that asset is returned with nothing new stored. Absent when `error` is set */
             existing?: boolean;
@@ -2915,10 +3020,27 @@ export interface components {
             id?: string;
             /** @description The asset's name: for a new one, the URL's last path segment without its extension, or `image`; absent when `error` is set */
             name?: string;
-            /** @description PROCESSING for a new asset, until ingest has measured it; DONE for one you already held. Absent when `error` is set */
-            status?: string;
+            /**
+             * @description PROCESSING for a new asset, until ingest has measured it; DONE for one you already held. Absent when `error` is set
+             * @enum {string}
+             */
+            status?: "PROCESSING" | "DONE" | "FAILED";
             /** @description The URL as you sent it */
-            url?: string;
+            url: string;
+        };
+        /** @description An image read without storing it: the facts an asset's `image` would have, and its metadata */
+        ImageMetadata: {
+            /**
+             * Format: int64
+             * @description How long the worker took, in milliseconds
+             */
+            durationMs?: number;
+            /** @description The fields of an asset's `image`, measured from these bytes — so what you read before storing is what the asset says after */
+            image: components["schemas"]["AssetImage"];
+            /** @description Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map an asset stores as `metadata`; every value is a string */
+            metadata: {
+                [key: string]: string;
+            };
         };
         /** @description A model's published price: ours, after markup, beside the provider's own list price */
         ImageModelPrice: {
@@ -2927,7 +3049,7 @@ export interface components {
             /** @description What the model does */
             description?: string;
             /** @description The model's id, as `model` names it */
-            id?: string;
+            id: string;
             /** @description The model's name */
             name?: string;
             /**
@@ -2947,34 +3069,57 @@ export interface components {
             /** @description The provider family */
             series?: string;
         };
-        /** @description Why one URL did not become an asset — the same fields as an error response */
-        ItemError: {
-            /** @description A code from the closed set: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit) or `internal_error` (storing it failed on our side; retryable) */
-            code?: string;
+        /** @description Why one entry of an import was refused: its index, and the fields of an `ItemError` */
+        ImportFailure: {
+            /**
+             * @description An `ErrorCode` from the closed set: `invalid_param` for an entry that fails its checks, `resource_limit_exceeded` for one past a ceiling
+             * @example invalid_param
+             */
+            code: string;
+            /**
+             * Format: int32
+             * @description The entry's position in what you sent, from 0
+             */
+            index: number;
             /** @description One sentence for a person; branch on `code` */
-            message?: string;
-            /** @description The offending parameter: `url`, or `file` for a body over the limit */
+            message: string;
+            /** @description The offending parameter of the entry, when one is to blame */
             param?: string;
-            /** @description Whether the same URL may succeed if sent again */
-            retryable?: boolean;
+            /** @description Whether sending the same entry again could succeed */
+            retryable: boolean;
+        };
+        /** @description Why one entry did not work out — one URL, one staged file, one asset's ingest, one imported entry: the same fields as an API error. Branch on `code` and `retryable`, never on `message`; the field that carries it lists the codes it sends */
+        ItemError: {
+            /**
+             * @description An `ErrorCode` from the closed set, as in an API error
+             * @example unsupported_format
+             */
+            code: string;
+            /** @description One sentence for a person; branch on `code` */
+            message: string;
+            /** @description The offending parameter, when one is to blame */
+            param?: string;
+            /** @description Whether sending the same thing again could succeed */
+            retryable: boolean;
         };
         Job: {
             /**
              * Format: int64
              * @description Credits charged: set when the job settles, for the work that completed; 0 until then, and for deterministic work, which spends none
              */
-            actualCredits?: number;
+            actualCredits: number;
+            /** @description The API key that submitted it; absent for a signed-in console session */
             apiKeyId?: string;
             /**
              * Format: int32
              * @description 1 for a fresh job, one more for each resume
              */
-            attemptNumber?: number;
+            attemptNumber: number;
             /**
              * Format: int32
              * @description Items cancelled before they ran
              */
-            cancelledItems?: number;
+            cancelledItems: number;
             /** @description The collection the outputs go in, as the request named it; absent when it named none (an output made from an asset then lands in that asset's collection) */
             collection?: string;
             /**
@@ -2986,14 +3131,17 @@ export interface components {
              * Format: int32
              * @description Items that completed
              */
-            completedItems?: number;
-            /** Format: int64 */
-            costPerItem?: number;
+            completedItems: number;
+            /**
+             * Format: int64
+             * @description Credits one item is priced at — what the job was quoted; 0 for deterministic work, and on a chain the sum of its segments
+             */
+            costPerItem: number;
             /**
              * Format: date-time
              * @description When it was submitted
              */
-            createdAt?: string;
+            createdAt: string;
             /** @description The verdict on the failed items, from the closed set of error codes: a retryable item's code when any is retryable, else the first failed item's. Absent when nothing failed, or no failure was classified */
             errorCode?: string;
             /** @description On a job with failed items, one line for a person ("2 of 3 items failed"); each item carries its own `error` */
@@ -3007,15 +3155,15 @@ export interface components {
              * Format: int32
              * @description Items that failed — each says why, and whether a resume could help
              */
-            failedItems?: number;
+            failedItems: number;
             /** @description The job's id, `job_…` */
-            id?: string;
+            id: string;
             /** @description The items, in order: the first 100 of them. `itemsTruncated` says when there are more — GET /api/v1/jobs/{id}/items pages the rest */
             items?: components["schemas"]["JobItem"][];
+            /** @description Present when `itemsTruncated` is: the `cursor` for GET /api/v1/jobs/{id}/items that reads on from the last inline item */
+            itemsNextCursor?: string;
             /** @description True when `items` is only the first page of them; absent otherwise */
             itemsTruncated?: boolean;
-            /** Format: date-time */
-            lastItemSettledAt?: string;
             /** @description The model the job calls; absent for deterministic work, and on a chain, whose segments name their own */
             model?: string;
             /** @description The op it was submitted as, when it was submitted as one — what usage groups by */
@@ -3051,12 +3199,12 @@ export interface components {
              * Format: int32
              * @description Items that reached an end — completed, failed or cancelled
              */
-            settledItems?: number;
+            settledItems: number;
             /**
              * @description `PENDING` waits for a slot (an account runs a few jobs of one type at a time; the rest queue), `PROCESSING` is running and `CANCELLING` is a cancel waiting for items already running. Then one of the terminal three: `COMPLETED` (no item failed), `FAILED` (at least one did — read the items) or `CANCELLED`.
              * @enum {string}
              */
-            status?: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CANCELLING";
+            status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CANCELLING";
             /**
              * Format: int32
              * @description How many inline `steps` the job ran; absent for an op or a preset job
@@ -3075,7 +3223,7 @@ export interface components {
              * Format: int32
              * @description Items handed to a provider or worker so far
              */
-            submittedItems?: number;
+            submittedItems: number;
             /** @description `render` only: the template, by id */
             templateId?: string;
             /** @description `render` only: the template's name */
@@ -3089,13 +3237,12 @@ export interface components {
              * Format: int32
              * @description How many items the job has — one per asset (times the variants), per image to generate, or per render row
              */
-            totalItems?: number;
+            totalItems: number;
             /**
              * @description What the job runs as — decided by the op, preset or steps it was submitted with
              * @enum {string}
              */
-            type?: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
-            userId?: string;
+            type: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
         };
         /** @description How many of your jobs are in one status and of one type. Only non-zero cells are listed. */
         JobCount: {
@@ -3103,7 +3250,7 @@ export interface components {
              * Format: int64
              * @description Jobs in this status and of this type, under the request's filters
              */
-            count?: number;
+            count: number;
             /**
              * @description The cell's status
              * @enum {string}
@@ -3122,25 +3269,25 @@ export interface components {
              * @description How many more assets the account can hold: the plan's stored-asset ceiling minus the assets it stores now (a chain's intermediates and failed uploads do not count). Deleting assets frees room; below zero after a downgrade. More items than this and a submit is 422 asset_count_exceeded.
              * @example 188
              */
-            assetCountLeft?: number;
+            assetCountLeft: number;
             /**
              * Format: int64
              * @description Credits per item (1 credit = $0.0001)
              * @example 390
              */
-            costPerItem?: number;
+            costPerItem: number;
             /**
              * Format: int64
              * @description The account's credit balance right now
              * @example 50000
              */
-            creditBalance?: number;
+            creditBalance: number;
             /**
              * Format: int64
              * @description totalItems × costPerItem
              * @example 4680
              */
-            estimatedCredits?: number;
+            estimatedCredits: number;
             /**
              * Format: int32
              * @description The longest edge, in pixels, of the image the model will be handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata first. AI jobs that send an image only; a chain states it per step.
@@ -3191,7 +3338,7 @@ export interface components {
             /** @description `chain` only: what each segment costs, in order, so the total can be added up rather than trusted. Their `costPerItem` sums to the job's. */
             steps?: components["schemas"]["StepEstimate"][];
             /** @description Whether a submit would be admitted: the balance, plus the one top-up an enabled auto top-up may overdraw, less what your running jobs already hold, covers the estimate. False does NOT mean the request is invalid — it means submitting it now would return insufficient_credit. */
-            sufficientCredit?: boolean;
+            sufficientCredit: boolean;
             /**
              * @description `render` only: the template the call named, by id
              * @example builtin-template-og-image
@@ -3213,14 +3360,93 @@ export interface components {
              * @description Number of items the job would have
              * @example 12
              */
-            totalItems?: number;
+            totalItems: number;
             /**
              * @description Job type the request resolves to
              * @example ai-generate
+             * @enum {string}
              */
-            type?: string;
+            type?: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
             /** @description What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. Present when the request named a preset or sent inline steps. */
             warnings?: components["schemas"]["StepWarning"][];
+        };
+        /** @description A job settled: `job.completed` when no item failed, `job.failed` otherwise (a cancel included) */
+        JobEvent: {
+            /**
+             * @description The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
+             * @enum {string}
+             */
+            apiVersion: "v1";
+            /**
+             * Format: date-time
+             * @description When the event was queued — not when this attempt was sent
+             */
+            createdAt: string;
+            data: components["schemas"]["JobEventData"];
+            /** @description The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat */
+            id: string;
+            /**
+             * @description What happened; it decides the shape of `data`
+             * @enum {string}
+             */
+            type: "job.completed" | "job.failed";
+        };
+        /** @description `job.completed` / `job.failed`: the settled job's numbers */
+        JobEventData: {
+            /**
+             * Format: int64
+             * @description What the job cost, in credits
+             */
+            actualCredits: number;
+            /**
+             * Format: int32
+             * @description Items a cancel stopped before they ran
+             */
+            cancelledItems: number;
+            /**
+             * Format: int32
+             * @description Items that completed
+             */
+            completedItems: number;
+            /**
+             * Format: int64
+             * @deprecated
+             * @description Deprecated: `actualCredits`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
+             */
+            creditsCharged: number;
+            /** @description The job's verdict on its failed items, from the closed set of error codes (§11); absent when no item failed */
+            errorCode?: string;
+            /**
+             * Format: int32
+             * @description Items that failed
+             */
+            failedItems: number;
+            /** @description The job, `job_…` — `id` on `GET /jobs/{id}` */
+            id: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `id`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
+             */
+            jobId: string;
+            /** @description The op it was submitted as, when it was submitted as one */
+            op?: string;
+            /** @description Whether a resume could help; absent when no item failed */
+            retryable?: boolean;
+            /**
+             * @description The terminal status it settled at; `job.failed` carries `FAILED` or `CANCELLED`
+             * @enum {string}
+             */
+            status: "COMPLETED" | "FAILED" | "CANCELLED";
+            /**
+             * Format: int32
+             * @description Items in the job
+             */
+            totalItems: number;
+            /**
+             * @description The job's type
+             * @enum {string}
+             */
+            type: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
         };
         /** @description One unit of a job — an asset, an image to generate or a render row — and its whole trace: what it made, what it cost, how long it took, and why it failed */
         JobItem: {
@@ -3306,6 +3532,89 @@ export interface components {
             /** @description The variant that made it; absent outside a variant set */
             variant?: string;
         };
+        /** @description One item settled — only to endpoints that subscribed to item events */
+        JobItemEvent: {
+            /**
+             * @description The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
+             * @enum {string}
+             */
+            apiVersion: "v1";
+            /**
+             * Format: date-time
+             * @description When the event was queued — not when this attempt was sent
+             */
+            createdAt: string;
+            data: components["schemas"]["JobItemEventData"];
+            /** @description The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat */
+            id: string;
+            /**
+             * @description What happened; it decides the shape of `data`
+             * @enum {string}
+             */
+            type: "job.item.completed" | "job.item.failed";
+        };
+        /** @description `job.item.completed` / `job.item.failed`: one item's outcome */
+        JobItemEventData: {
+            /** @description A failed item: why, in one sentence for a person */
+            error?: string;
+            /** @description A failed item: the code to branch on, from the closed set of error codes (§11) */
+            errorCode?: string;
+            /**
+             * Format: int32
+             * @description `chain` only: the segment a failed item failed on, from 0 — where a resume restarts it
+             */
+            failedStep?: number;
+            /**
+             * Format: int32
+             * @description The item's position in the job, from 0 — `index` on the job's items
+             */
+            index: number;
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated: `index`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
+             */
+            itemIndex: number;
+            /** @description The job the item belongs to, `job_…` */
+            jobId: string;
+            /** @description The op the job was submitted as, when it was submitted as one */
+            op?: string;
+            /** @description `analyze` only: the answer, in the default schema's shape or your `parameters.schema` */
+            output?: {
+                [key: string]: unknown;
+            };
+            /** @description The asset it made, once `COMPLETED`; absent for `analyze`, whose product is `output` */
+            resultAssetId?: string;
+            /** @description A failed item: whether a resume could succeed — the code's own flag */
+            retryable?: boolean;
+            /**
+             * Format: int32
+             * @description Items of the job settled so far, this one included
+             */
+            settledItems: number;
+            /** @description The asset it ran on; absent for an image generated from a prompt or a render row */
+            sourceAssetId?: string;
+            /**
+             * @description How the item settled
+             * @enum {string}
+             */
+            status: "COMPLETED" | "FAILED";
+            /**
+             * Format: int32
+             * @description `chain` only: the segment the item is on, from 0 — a chain's item is delivered once per segment
+             */
+            step?: number;
+            /**
+             * Format: int32
+             * @description Items in the job
+             */
+            totalItems: number;
+            /**
+             * @description The job's type
+             * @enum {string}
+             */
+            type: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
+        };
         /** @description One pass a deterministic job runs: a name — the variant's, when there is a set of them — and its registry steps */
         JobPipeline: {
             /** @description The variant's name, or `op:<name>` for a single op */
@@ -3338,8 +3647,8 @@ export interface components {
              * @description render_template: one object of template variables per output image (≤ 500). May also be given as `parameters.items`.
              * @example [
              *       {
-             *         "title": "Hello",
-             *         "site": "imagestep.dev"
+             *         "site": "imagestep.dev",
+             *         "title": "Hello"
              *       }
              *     ]
              */
@@ -3406,7 +3715,7 @@ export interface components {
              * Format: int64
              * @description Credits one item costs on this segment, frozen at submit; 0 for a deterministic one
              */
-            costPerItem?: number;
+            costPerItem: number;
             /** @description An AI segment's model */
             model?: string;
             /** @description The op the segment runs; absent for a pass built from registry steps only */
@@ -3425,61 +3734,124 @@ export interface components {
              */
             type?: "ai-generate" | "ai-edit" | "parse" | "process";
         };
-        /** @description One row of `GET /api/v1/jobs`: the job's own fields, as on `Job` — what ran, how far it got, what it cost — without `items`, `steps`, `subjects`, `pipelines`, `segments`, `parameters`, `prompt`, `references` or `collection`. Read the job by id for those. */
+        /** @description One row of `GET /api/v1/jobs`: the same fields as `Job` — what ran, how far it got, what it cost — minus `items` (with `itemsTruncated` and `itemsNextCursor`), `steps`, `subjects`, `pipelines`, `segments`, `parameters`, `prompt`, `references` and `collection`. Read the job by id for those. */
         JobSummary: {
-            /** Format: int64 */
-            actualCredits?: number;
+            /**
+             * Format: int64
+             * @description Credits charged: set when the job settles, for the work that completed; 0 until then, and for deterministic work, which spends none
+             */
+            actualCredits: number;
             /** @description The API key that submitted it; absent for a signed-in console session */
             apiKeyId?: string;
-            /** Format: int32 */
-            attemptNumber?: number;
-            /** Format: int32 */
-            cancelledItems?: number;
-            /** Format: date-time */
+            /**
+             * Format: int32
+             * @description 1 for a fresh job, one more for each resume
+             */
+            attemptNumber: number;
+            /**
+             * Format: int32
+             * @description Items cancelled before they ran
+             */
+            cancelledItems: number;
+            /**
+             * Format: date-time
+             * @description When it reached a terminal status
+             */
             completedAt?: string;
-            /** Format: int32 */
-            completedItems?: number;
+            /**
+             * Format: int32
+             * @description Items that completed
+             */
+            completedItems: number;
             /**
              * Format: int64
              * @description Credits one item is priced at — what the job was quoted; 0 for deterministic work, and on a chain the sum of its segments
              */
-            costPerItem?: number;
-            /** Format: date-time */
-            createdAt?: string;
+            costPerItem: number;
+            /**
+             * Format: date-time
+             * @description When it was submitted
+             */
+            createdAt: string;
+            /** @description The verdict on the failed items, from the closed set of error codes: a retryable item's code when any is retryable, else the first failed item's. Absent when nothing failed, or no failure was classified */
             errorCode?: string;
+            /** @description On a job with failed items, one line for a person ("2 of 3 items failed"); each item carries its own `error` */
             errorMessage?: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When the record is swept — the plan's retention window at submit, the same as the assets it made. Never shortened by a downgrade
+             */
             expiresAt?: string;
-            /** Format: int32 */
-            failedItems?: number;
-            id?: string;
+            /**
+             * Format: int32
+             * @description Items that failed — each says why, and whether a resume could help
+             */
+            failedItems: number;
+            /** @description The job's id, `job_…` */
+            id: string;
+            /** @description The model the job calls; absent for deterministic work, and on a chain, whose segments name their own */
             model?: string;
+            /** @description The op it was submitted as, when it was submitted as one — what usage groups by */
             op?: string;
+            /** @description The attempt this one resumed; absent on a first attempt */
             parentJobId?: string;
+            /** @description The preset it ran, by id; absent for an op, inline steps or a render */
             presetId?: string;
+            /** @description The preset's name; `op:<name>` for an op, `Ad-hoc` for a bare type and model; absent for a render */
             presetName?: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description The version of the preset it ran — a later edit of the preset never changes it
+             */
             presetVersion?: number;
+            /** @description Whether a resume could help: true when at least one failed item failed for a reason that may pass. Absent with `errorCode` */
             retryable?: boolean;
+            /** @description The first attempt's id — the job's own on a first attempt, and the same on every resume of it, so `GET /api/v1/jobs?rootJobId=` lists every attempt */
             rootJobId?: string;
-            /** Format: int32 */
-            settledItems?: number;
-            /** @enum {string} */
-            status?: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CANCELLING";
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Items that reached an end — completed, failed or cancelled
+             */
+            settledItems: number;
+            /**
+             * @description `PENDING` waits for a slot (an account runs a few jobs of one type at a time; the rest queue), `PROCESSING` is running and `CANCELLING` is a cancel waiting for items already running. Then one of the terminal three: `COMPLETED` (no item failed), `FAILED` (at least one did — read the items) or `CANCELLED`.
+             * @enum {string}
+             */
+            status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CANCELLING";
+            /**
+             * Format: int32
+             * @description How many inline `steps` the job ran; absent for an op or a preset job
+             */
             stepCount?: number;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When it left the queue and started running
+             */
             submittedAt?: string;
-            /** Format: int32 */
-            submittedItems?: number;
+            /**
+             * Format: int32
+             * @description Items handed to a provider or worker so far
+             */
+            submittedItems: number;
+            /** @description `render` only: the template, by id */
             templateId?: string;
+            /** @description `render` only: the template's name */
             templateName?: string;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description `render` only: the version of the template it rendered
+             */
             templateVersion?: number;
-            /** Format: int32 */
-            totalItems?: number;
-            /** @enum {string} */
-            type?: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
+            /**
+             * Format: int32
+             * @description How many items the job has — one per asset (times the variants), per image to generate, or per render row
+             */
+            totalItems: number;
+            /**
+             * @description What the job runs as — decided by the op, preset or steps it was submitted with
+             * @enum {string}
+             */
+            type: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
         };
         /** @description A model an AI op can run on, with its price and what it accepts */
         ModelDTO: {
@@ -3492,19 +3864,31 @@ export interface components {
              */
             categories?: string[];
             /**
+             * @deprecated
+             * @description Deprecated: `completionPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            completion_price?: string;
+            /**
              * @description Price per 1M output tokens in USD
              * @example 15.00
              */
-            completion_price?: string;
+            completionPrice?: string;
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated: `contextLength`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            context_length?: number;
             /**
              * Format: int32
              * @description Maximum context window supported by the model (tokens)
              * @example 128000
              */
-            context_length?: number;
+            contextLength?: number;
             /**
              * Format: int64
-             * @description Unix timestamp when the model metadata was last updated
+             * @deprecated
+             * @description Deprecated, and goes on 2027-01-12 with no replacement: it was never when the model changed, only a constant per provider. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
              * @example 1711500000
              */
             created?: number;
@@ -3517,17 +3901,27 @@ export interface components {
              * @description The model's id — what `model` names on a job or a preset step
              * @example fal-ai/bria/background/remove
              */
-            id?: string;
+            id: string;
             /**
-             * @description Our price per image in USD — the provider's list price plus our markup — as one figure, or min - max across sizes, qualities or scale factors
-             * @example $0.009 - $0.133
+             * @deprecated
+             * @description Deprecated: `priceRange`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
              */
             image_price_range?: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `imageRequired`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            image_required?: boolean;
             /**
              * @description Whether an input image is required (true), optional (false), or not supported (null)
              * @example true
              */
-            image_required?: boolean;
+            imageRequired?: boolean;
+            /**
+             * @deprecated
+             * @description Deprecated: `inputModalities`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            input_modalities?: string[];
             /**
              * @description Input modalities supported by the model
              * @example [
@@ -3535,29 +3929,47 @@ export interface components {
              *       "image"
              *     ]
              */
-            input_modalities?: string[];
+            inputModalities?: string[];
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated: `maxInputEdge`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            max_input_edge?: number;
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated: `maxInputImages`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            max_input_images?: number;
             /**
              * Format: int32
              * @description The longest edge, in pixels, of an input image this model is handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata before the provider sees it. For a model billed per megapixel it is also what the quoted price assumes. Absent for a model that takes no image.
              * @example 2048
              */
-            max_input_edge?: number;
+            maxInputEdge?: number;
             /**
              * Format: int32
              * @description Maximum number of input images accepted. null = no image input, 1 = single image, >1 = multi-image
              * @example 1
              */
-            max_input_images?: number;
+            maxInputImages?: number;
             /**
-             * @description Model mode: ai_image, or analyze for the models the analyze op sells
+             * @description Model mode: `analyze` for the models the analyze op sells, `ai_image` for the rest
              * @example ai_image
+             * @enum {string}
              */
-            mode?: string;
+            mode?: "ai_image" | "analyze";
             /**
              * @description Human readable model name
              * @example OpenAI GPT-4o
              */
             name?: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `outputModalities`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            output_modalities?: string[];
             /**
              * @description Output modalities supported by the model
              * @example [
@@ -3565,24 +3977,51 @@ export interface components {
              *       "image"
              *     ]
              */
-            output_modalities?: string[];
-            /** @description The parameters the model takes in a job's `parameters`: a list of `{key, label, type, defaultValue}`, with `options` or `min` / `max` where the value is bounded */
+            outputModalities?: string[];
+            /**
+             * @deprecated
+             * @description Deprecated: read `params`, the same declaration in the op catalogue's shape; goes on 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields. A list of `{key, label, type, defaultValue}`, with `options` or `min` / `max` where the value is bounded
+             */
             parameters?: unknown;
+            /** @description What a job's `parameters` may carry on this model, in the op catalogue's shape (`GET /api/v1/ops` → `params`): name → `{type, enum?, min?, max?, default?, title, description?}`. A key not here, or a value outside its `enum` or bounds, is `400 invalid_param`. Empty for an `analyze` model: its two parameters are the op's own */
+            params?: {
+                [key: string]: components["schemas"]["ModelParam"];
+            };
+            /**
+             * @description Our price per image in USD — the provider's list price plus our markup — as one figure, or min - max across sizes, qualities or scale factors
+             * @example $0.009 - $0.133
+             */
+            priceRange?: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `promptPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            prompt_price?: string;
             /**
              * @description Price per 1M input tokens in USD
              * @example 5.00
              */
-            prompt_price?: string;
+            promptPrice?: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `providerPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            provider_price?: string;
+            /**
+             * @deprecated
+             * @description Deprecated: `providerPriceRange`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            provider_price_range?: string;
             /**
              * @description The provider's list price per image in USD, before our markup — the cheapest end when the price has a range. Every model carries one, so our multiple of it can be checked.
              * @example 0.039
              */
-            provider_price?: string;
+            providerPrice?: string;
             /**
-             * @description The provider's list price range in USD across the same span as image_price_range. Present only for models whose provider price depends on a parameter.
+             * @description The provider's list price range in USD across the same span as `priceRange`. Present only for models whose provider price depends on a parameter.
              * @example $0.12 - $0.48
              */
-            provider_price_range?: string;
+            providerPriceRange?: string;
             /**
              * @description Provider family derived from the model id prefix
              * @example Openai
@@ -3592,9 +4031,37 @@ export interface components {
              * @description Whether the model supports JSON schema structured output
              * @example true
              */
+            structuredOutput?: boolean;
+            /**
+             * @deprecated
+             * @description Deprecated: `structuredOutput`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
             support_structured_output?: boolean;
-            /** @description Supported optional parameters and their constraints (may be object or array) */
-            supported_parameters?: unknown;
+            /**
+             * @deprecated
+             * @description Deprecated: `params`' keys, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+             */
+            supported_parameters?: string[];
+        };
+        /** @description One parameter a model takes — the shape of an op's `params` entry */
+        ModelParam: {
+            /** @description What the model uses when the key is left out */
+            default?: unknown;
+            /** @description What it does */
+            description?: string;
+            /** @description The values it takes; any other is `400 invalid_param` */
+            enum?: unknown[];
+            /** @description The largest value it takes */
+            max?: number;
+            /** @description The smallest value it takes */
+            min?: number;
+            /** @description Its name, for a person */
+            title: string;
+            /**
+             * @description The JSON type of the value
+             * @enum {string}
+             */
+            type: "integer" | "number" | "string" | "boolean";
         };
         /** @description One atomic op: what it does, how to call it, what it costs and whether it can run while you wait */
         OpDefinition: {
@@ -3623,7 +4090,7 @@ export interface components {
             kind?: "ai" | "deterministic" | "sync";
             /**
              * Format: int32
-             * @description AI ops: the longest edge, in pixels, an input image is scaled down to before the default model sees it; another model's is its `max_input_edge` in GET /api/v1/ai-models
+             * @description AI ops: the longest edge, in pixels, an input image is scaled down to before the default model sees it; another model's is its `maxInputEdge` in GET /api/v1/ai-models
              */
             maxInputEdge?: number;
             /** @description AI ops: the category a model must carry (GET /api/v1/ai-models → `categories`) to run this op; any other `model` is `400 invalid_param` */
@@ -3633,7 +4100,7 @@ export interface components {
              * @example remove_bg
              */
             op?: string;
-            /** @description The parameter contract: name → `{type, enum?, min?, max?, default?, description}`. A deterministic op refuses any other parameter with `400 invalid_param` */
+            /** @description The parameter contract: name → `{type, enum?, min?, max?, required?, default?, description}` — `enum`, `min` / `max` and `required` are what the op enforces. A deterministic op refuses any other parameter with `400 invalid_param` */
             params?: {
                 [key: string]: {
                     [key: string]: unknown;
@@ -3647,9 +4114,9 @@ export interface components {
              */
             produces?: "image" | "json";
             /** @description Whether a job of this op needs `assetIds` */
-            requiresAssets?: boolean;
+            requiresAssets: boolean;
             /** @description Whether a job of this op needs a `prompt` */
-            requiresPrompt?: boolean;
+            requiresPrompt: boolean;
             /** @description The endpoint that runs the op while you wait — bytes in, bytes out, nothing stored — or absent when it has none. AI ops never do: a model call needs a job to own its retry and refund */
             syncEndpoint?: string;
             /**
@@ -3719,7 +4186,8 @@ export interface components {
         PipelineStep: {
             disabled?: boolean;
             operation?: string;
-            params?: unknown;
+            /** @description The registry step's arguments */
+            params?: Record<string, never>;
         };
         /**
          * @description A preset: a named, versioned list of steps, each an L1 op or a processing-registry step. GET returns the export shape; POST /api/v1/presets/import takes it back.
@@ -3730,9 +4198,9 @@ export interface components {
          *         {
          *           "op": "resize",
          *           "parameters": {
-         *             "width": 1200,
+         *             "fit": "contain",
          *             "height": 1200,
-         *             "fit": "contain"
+         *             "width": 1200
          *           }
          *         },
          *         {
@@ -3820,7 +4288,7 @@ export interface components {
                 [key: string]: unknown;
             };
             /** @description That registry step's arguments. */
-            params?: unknown;
+            params?: Record<string, never>;
             /** @description AI steps: the prompt. {{subject.<name>}} expands to that subject's descriptor. */
             prompt?: string;
         };
@@ -3859,10 +4327,10 @@ export interface components {
         /** @description One asset's preview: a signed URL for its small rendition when it exists, plus enough state to know why it does not yet */
         PreviewUrl: {
             /** @description Why ingest failed — on FAILED only (imagestep#734) */
-            error?: components["schemas"]["AssetError"];
+            error?: components["schemas"]["ItemError"];
             /**
              * Format: int64
-             * @description When `url` stops working, epoch millis; absent when `url` is
+             * @description When `url` stops working, epoch millis; absent when `url` is. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
              */
             expiresAt?: number | null;
             /**
@@ -3871,12 +4339,12 @@ export interface components {
              */
             height?: number | null;
             /** @description Asset ID */
-            id?: string;
+            id: string;
             /**
              * @description Ingest state; a preview exists once this is DONE
              * @enum {string}
              */
-            status?: "PROCESSING" | "DONE" | "FAILED";
+            status: "PROCESSING" | "DONE" | "FAILED";
             /** @description Signed URL for the preview, a WebP at most 400 px wide; absent while ingest is still running or after it failed */
             url?: string | null;
             /**
@@ -3893,7 +4361,7 @@ export interface components {
              * Format: int64
              * @description How long each `url` is valid from the moment it was signed
              */
-            ttlSeconds?: number;
+            ttlSeconds: number;
         };
         /** @description Request object for signing preview URLs */
         PreviewUrlsRequest: {
@@ -3920,10 +4388,10 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * @description Template id, your own slug, or either with `@version` to pin one version (required)
+             * @description Template id, your own slug, or either with `@version` to pin one version
              * @example builtin-template-og-image
              */
-            templateId?: string;
+            templateId: string;
         };
         /** @description Request object for staging file upload */
         StageUploadRequest: {
@@ -3951,20 +4419,25 @@ export interface components {
              * @example image/jpeg
              */
             contentType?: string;
-            /** @description Why this file was not staged (no image extension this service accepts, or over the 100 MB limit). When present, objectId and url are absent: skip the file */
+            /**
+             * @deprecated
+             * @description Deprecated: `failure.message`, the same words; goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failure`, which has a `code` to branch on (imagestep#755)
+             */
             error?: string;
             /** @description Id of the caller's existing asset with the same SHA1 (present only when exists=true) */
             existingAssetId?: string;
             /** @description True when the caller already has an asset with this SHA1. The objectId/url above are still a fresh, EMPTY upload slot: either PUT the bytes and finish-upload as usual, or skip both and use existingAssetId. */
             exists?: boolean;
-            /** @description The staged object's key — `<your account id>/<uuid>`. Opaque: send it back to finish-upload unchanged. Absent when `error` is set */
+            /** @description Why this file was not staged; when present, objectId and url are absent: skip the file. `code`: `unsupported_format` (no image extension this service accepts; `param: fileName`), `invalid_param` (`param: fileSize`, which is required) or `payload_too_large` (over the 100 MB limit; `param: fileSize`). None is retryable: the same file is refused the same way (imagestep#755) */
+            failure?: components["schemas"]["ItemError"];
+            /** @description The staged object's key — `<your account id>/<uuid>`. Opaque: send it back to finish-upload unchanged. Absent when `failure` is set */
             objectId?: string;
             /**
              * @description The sha1Hash you sent, echoed so you can match the answer to your file
              * @example 356a192b7913b04c54574d18c28d46e6395428ab
              */
             sha1Hash?: string;
-            /** @description Pre-signed URL to PUT the bytes to, valid for 60 minutes. Absent when `error` is set */
+            /** @description Pre-signed URL to PUT the bytes to, valid for 60 minutes. Absent when `failure` is set */
             url?: string;
         };
         /** @description Which segment of a chain produced the asset */
@@ -3973,12 +4446,12 @@ export interface components {
              * Format: int32
              * @description How many segments the chain has
              */
-            count?: number;
+            count: number;
             /**
              * Format: int32
              * @description The segment, 0-based
              */
-            index?: number;
+            index: number;
         };
         /** @description One segment of a chain job's cost */
         StepEstimate: {
@@ -3989,13 +4462,13 @@ export interface components {
              * @description Credits one item costs on this segment; 0 for a process segment
              * @example 390
              */
-            costPerItem?: number;
+            costPerItem: number;
             /**
              * Format: int32
              * @description Segment index, 0-based
              * @example 0
              */
-            index?: number;
+            index: number;
             /**
              * Format: int32
              * @description The longest edge, in pixels, of the image this segment's model is handed; absent for a process segment
@@ -4058,18 +4531,45 @@ export interface components {
             /** @description An image on the internet, fetched by this service: `http(s)` only, never a private or loopback address, redirects not followed. Its format is the type it was served as, else the one its extension names */
             url?: string;
         };
+        /** @description A transformed image as a signed link instead of the bytes */
+        SyncUrlResult: {
+            /**
+             * Format: int64
+             * @description The result's size in bytes
+             */
+            bytes: number;
+            /** @description The result's type, e.g. image/webp */
+            contentType: string;
+            /**
+             * Format: int64
+             * @description How long the link works, in seconds
+             */
+            expiresInSeconds: number;
+            /**
+             * Format: int32
+             * @description The result's pixel height, when the worker reported it
+             */
+            height?: number;
+            /** @description Where to fetch the result; signed, valid for `expiresInSeconds` */
+            url: string;
+            /**
+             * Format: int32
+             * @description The result's pixel width, when the worker reported it
+             */
+            width?: number;
+        };
         /**
          * @description HTML/CSS render template with {{ var }} placeholders; the input of the render_template op
          * @example {
-         *       "name": "Quote card",
-         *       "width": 1080,
+         *       "css": "main{display:grid;place-items:center;height:100%;font-family:system-ui}",
          *       "height": 1350,
          *       "html": "<main><blockquote>{{ quote }}</blockquote><cite>{{ author }}</cite></main>",
-         *       "css": "main{display:grid;place-items:center;height:100%;font-family:system-ui}",
+         *       "name": "Quote card",
          *       "variables": [
          *         "quote",
          *         "author"
-         *       ]
+         *       ],
+         *       "width": 1080
          *     }
          */
         TemplateData: {
@@ -4137,7 +4637,7 @@ export interface components {
              */
             height?: number;
             /** @description Template id (`tpl_…`, or `builtin-template-…`); `id@version` addresses one frozen version */
-            id?: string;
+            id: string;
             /** @description Display name */
             name?: string;
             /** @description URL-safe slug */
@@ -4163,13 +4663,16 @@ export interface components {
         /** @description The asset one upload created, or the one the account already held for the same bytes */
         UploadedAsset: {
             /** @description true when the account already had a DONE asset with the same SHA-1 — that asset is returned and nothing new is stored */
-            existing?: boolean;
+            existing: boolean;
             /** @description Asset id */
-            id?: string;
+            id: string;
             /** @description Asset name (the file name without its extension) */
             name?: string;
-            /** @description PROCESSING for a new asset; DONE when `existing` is true */
-            status?: string;
+            /**
+             * @description PROCESSING for a new asset; DONE when `existing` is true
+             * @enum {string}
+             */
+            status: "PROCESSING" | "DONE" | "FAILED";
         };
         /** @description Usage over one window: its bounds, the grouping, the total and one bucket per group */
         Usage: {
@@ -4199,7 +4702,7 @@ export interface components {
              * Format: int32
              * @description How many HTTP attempts have been made
              */
-            attempts?: number;
+            attempts: number;
             /**
              * Format: date-time
              * @description When the event was queued; retries stop 24 hours after it
@@ -4214,10 +4717,13 @@ export interface components {
             error?: string;
             /** @description The event this delivered; the same id is in the body's `id` and on every retry */
             eventId?: string;
-            /** @description Event type, e.g. job.completed */
-            eventType?: string;
+            /**
+             * @description The event's type
+             * @enum {string}
+             */
+            eventType?: "job.completed" | "job.failed" | "job.item.completed" | "job.item.failed";
             /** @description The delivery's id, `whd_…` */
-            id?: string;
+            id: string;
             /**
              * Format: date-time
              * @description When the next retry is due, while status is PENDING
@@ -4228,8 +4734,11 @@ export interface components {
              * @description The last attempt's HTTP status, or null when the request never got one (DNS, timeout, TLS)
              */
             responseStatus?: number;
-            /** @description PENDING while retries remain, DELIVERED once a 2xx came back, FAILED when it gave up — 24 hours after the event was queued, after a test's single attempt, or when the endpoint was disabled or deleted with the event still queued */
-            status?: string;
+            /**
+             * @description PENDING while retries remain, DELIVERED once a 2xx came back, FAILED when it gave up — 24 hours after the event was queued, after a test's single attempt, or when the endpoint was disabled or deleted with the event still queued
+             * @enum {string}
+             */
+            status?: "PENDING" | "DELIVERED" | "FAILED";
         };
         /** @description A URL this account receives job events at. The signing secret is masked on every read but the create and rotate-secret answers. */
         WebhookEndpoint: {
@@ -4237,7 +4746,7 @@ export interface components {
              * Format: int32
              * @description Events in a row whose delivery ran out of retries since the last accepted one. At 5 the endpoint is disabled; any `2xx` resets it to 0.
              */
-            consecutiveFailures?: number;
+            consecutiveFailures: number;
             /** Format: date-time */
             createdAt?: string;
             /** @description Your label for it */
@@ -4250,11 +4759,11 @@ export interface components {
             /** @description Why it was switched off: the count and the last delivery error */
             disabledReason?: string;
             /** @description Whether events are delivered. `false` when you paused it, or when the service disabled it (then `disabledAt` is set). */
-            enabled?: boolean;
+            enabled: boolean;
             /** @description The subscription as you set it. Absent or empty means every job-level event; per-item events are delivered only when listed here. */
-            events?: string[];
+            events?: ("job.completed" | "job.failed" | "job.item.completed" | "job.item.failed")[];
             /** @description The endpoint's id, `whe_…` */
-            id?: string;
+            id: string;
             /** @description The signing secret in the clear, `whsec_…` — present only on the create and rotate-secret answers, so store it then. Every other read carries `secretHint` instead. */
             secret?: string;
             /** @description The secret masked — its first 7 and last 4 characters — enough to tell which one your receiver holds, not enough to sign with */
@@ -4263,7 +4772,32 @@ export interface components {
             updatedAt?: string;
             /** @description Where events are POSTed */
             url?: string;
-            userId?: string;
+        };
+        /** @description `webhook.test`'s data: a sentence saying the delivery is a test */
+        WebhookTestData: {
+            /** @description Says the delivery is a test and nothing happened to the account */
+            message: string;
+        };
+        /** @description The synthetic event `POST /webhook-endpoints/{id}/test` sends */
+        WebhookTestEvent: {
+            /**
+             * @description The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
+             * @enum {string}
+             */
+            apiVersion: "v1";
+            /**
+             * Format: date-time
+             * @description When the event was queued — not when this attempt was sent
+             */
+            createdAt: string;
+            data: components["schemas"]["WebhookTestData"];
+            /** @description The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat */
+            id: string;
+            /**
+             * @description What happened; it decides the shape of `data`
+             * @enum {string}
+             */
+            type: "webhook.test";
         };
     };
     responses: never;
@@ -4323,8 +4857,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4337,7 +4879,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -4348,6 +4890,8 @@ export interface operations {
             /** @description The calling key is revoked; from now on it answers `401` */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -4397,8 +4941,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4521,8 +5073,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4580,8 +5140,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4594,7 +5162,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -4608,6 +5176,8 @@ export interface operations {
             /** @description Deleted; no body */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -4657,8 +5227,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4737,8 +5315,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4802,8 +5388,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4816,7 +5410,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -4831,6 +5425,8 @@ export interface operations {
             /** @description What moved */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -4885,8 +5481,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4899,7 +5503,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -4914,6 +5518,8 @@ export interface operations {
             /** @description What was deleted */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -4965,8 +5571,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4979,7 +5593,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -4994,6 +5608,8 @@ export interface operations {
             /** @description One new asset per object, in request order */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -5067,8 +5683,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5081,7 +5705,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -5096,6 +5720,8 @@ export interface operations {
             /** @description One result per URL, in request order — a refused URL is a result with `error`, not a failed request; bytes you already hold are that asset, `existing: true` */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -5167,8 +5793,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5244,8 +5878,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5258,7 +5900,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -5273,6 +5915,8 @@ export interface operations {
             /** @description One entry per file, in request order: a signed `url`, or an `error` */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -5341,8 +5985,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5401,8 +6053,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5415,7 +6075,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -5430,6 +6090,8 @@ export interface operations {
             /** @description The updated assets, in request order */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -5485,8 +6147,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5617,8 +6287,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5680,8 +6358,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5694,7 +6380,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -5709,6 +6395,8 @@ export interface operations {
             /** @description Logged */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -5763,11 +6451,23 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
+            /**
+             * @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait.
+             *
+             *     Here also: `rate_limited` — this account filed 200 reports today (UTC). Retryable: `details.resetAt` is the next midnight UTC, `Retry-After` the seconds until it; nothing is stored
+             */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5809,7 +6509,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiResponseMapStringObject"];
+                    "application/json": components["schemas"]["ApiResponseImageMetadata"];
                 };
             };
             /**
@@ -5887,8 +6587,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5985,8 +6693,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6025,7 +6741,7 @@ export interface operations {
                 /** @description A deterministic preset to run as one call: its slug or id, or slug@version to pin one version. Mutually exclusive with `op`. */
                 preset?: string;
                 /** @description `url` to get JSON with a signed link to the result (valid 5 minutes) instead of the bytes; anything else, or nothing, answers the bytes. The one part of this endpoint that writes storage: a temporary object, gone within a day. */
-                response?: string;
+                response?: "url";
             };
             header?: never;
             path?: never;
@@ -6043,7 +6759,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The transformed image, `Content-Type` the produced format, with `X-ImageStep-Width` / `X-ImageStep-Height` and `X-ImageStep-Duration-Ms`. With `?response=url`, JSON instead: `data` is `{url, contentType, bytes, expiresInSeconds, width, height}` — a signed link to the result, valid for 5 minutes. */
+            /** @description The transformed image, `Content-Type` the produced format, with `X-ImageStep-Width` / `X-ImageStep-Height` and `X-ImageStep-Duration-Ms`. With `?response=url`, JSON instead: `data` is a signed link to the result, valid for 5 minutes. */
             200: {
                 headers: {
                     /** @description Requests allowed in the current window */
@@ -6057,7 +6773,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ApiResponseSyncUrlResult"];
                     "image/*": string;
                 };
             };
@@ -6143,8 +6859,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6270,8 +6994,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6289,7 +7021,7 @@ export interface operations {
                 dryRun?: boolean;
             };
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -6304,6 +7036,8 @@ export interface operations {
             /** @description `?dryRun=true`: what the job would cost, nothing was created — or, with `wait`, the job, terminal inside the window (a FAILED job is terminal too: read `status`). */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -6321,6 +7055,8 @@ export interface operations {
             /** @description The job, created — `PENDING` or `PROCESSING`. Also the answer to a `wait` on a batch, which is ignored. */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -6338,6 +7074,8 @@ export interface operations {
             /** @description `wait` was given and the job is still running when the window closed: the same job document, not yet terminal. Wait again with `GET /api/v1/jobs/{id}?wait=`. */
             202: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -6447,8 +7185,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6509,8 +7255,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6540,7 +7294,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -6554,6 +7308,8 @@ export interface operations {
             /** @description The job — `CANCELLING` or `CANCELLED` */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -6622,8 +7378,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6690,8 +7454,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6704,7 +7476,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -6718,6 +7490,8 @@ export interface operations {
             /** @description The new attempt, created */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -6826,8 +7600,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6919,8 +7701,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -6958,8 +7748,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7020,8 +7818,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7081,8 +7887,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7095,7 +7909,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -7110,6 +7924,8 @@ export interface operations {
             /** @description The preset as saved, with `warnings` when there is something to say */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7191,8 +8007,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7273,8 +8097,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7287,7 +8119,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -7305,6 +8137,8 @@ export interface operations {
             /** @description The preset as saved — at `version + 1` when its steps or subjects changed */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7411,8 +8245,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7425,7 +8267,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -7439,6 +8281,8 @@ export interface operations {
             /** @description Deleted; no body */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7522,8 +8366,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7536,7 +8388,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -7552,6 +8404,8 @@ export interface operations {
             /** @description Deleted; no body */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7638,8 +8492,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7652,7 +8514,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -7667,6 +8529,8 @@ export interface operations {
             /** @description What landed, and one line per entry that did not */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7735,8 +8599,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7803,8 +8675,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7817,7 +8697,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -7832,6 +8712,8 @@ export interface operations {
             /** @description The template, at version 1 */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -7906,8 +8788,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7982,8 +8872,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7996,7 +8894,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8014,6 +8912,8 @@ export interface operations {
             /** @description The template, at its new version */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8099,8 +8999,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8113,7 +9021,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8127,6 +9035,8 @@ export interface operations {
             /** @description Deleted; no body */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8193,8 +9103,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8252,8 +9170,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8266,7 +9192,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -8281,6 +9207,8 @@ export interface operations {
             /** @description What landed, and one line per entry that did not */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8349,8 +9277,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8422,8 +9358,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8461,8 +9405,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8475,7 +9427,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path?: never;
@@ -8490,6 +9442,8 @@ export interface operations {
             /** @description Registered and enabled. The one answer that carries `secret` in the clear. */
             201: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8563,8 +9517,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8622,8 +9584,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8636,7 +9606,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8654,6 +9624,8 @@ export interface operations {
             /** @description The endpoint as it now is */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8726,8 +9698,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8740,7 +9720,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8754,6 +9734,8 @@ export interface operations {
             /** @description Deleted */
             204: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8803,8 +9785,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8869,8 +9859,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8883,7 +9881,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8897,6 +9895,8 @@ export interface operations {
             /** @description The endpoint, with the new `secret` in the clear */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -8948,8 +9948,16 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8962,7 +9970,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. */
+                /** @description Optional. A client-generated unique key (typically a UUID). Same key + the same request (method, path, query string and body) replays the first response verbatim with `Idempotency-Replayed: true`, without executing again. Same key + a different one returns 409 `idempotency_key_reuse`. A repeat that arrives while the first is still running returns 409 `request_in_progress`, which is retryable. Keys are retained 24 hours. At most 255 characters; a longer one is a 400 `invalid_param` with `param: "Idempotency-Key"`. */
                 "Idempotency-Key"?: string;
             };
             path: {
@@ -8976,6 +9984,8 @@ export interface operations {
             /** @description The attempt was made — read `status`: an unreachable receiver is a `FAILED` delivery, not an error */
             200: {
                 headers: {
+                    /** @description `true` when this is the stored answer to an earlier request with the same `Idempotency-Key`, replayed without running it again; absent otherwise */
+                    "Idempotency-Replayed"?: "true";
                     /** @description Requests allowed in the current window */
                     "RateLimit-Limit"?: number;
                     /** @description Requests left in the current window */
@@ -9027,13 +10037,131 @@ export interface operations {
             /** @description Rate limited — `error.code` is `rate_limited` and `retryable` is true. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
+                    /** @description Requests allowed in the current window */
+                    "RateLimit-Limit"?: number;
+                    /** @description Requests left in the current window */
+                    "RateLimit-Remaining"?: number;
+                    /** @description Seconds until the window resets */
+                    "RateLimit-Reset"?: number;
                     /** @description Seconds to wait before retrying */
                     "Retry-After"?: number;
+                    /** @description This request's id — echoed from your own `X-Request-Id` when you send one. Identical to `error.requestId` on a failure; quote it when reporting one. */
+                    "X-Request-Id"?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
+            };
+        };
+    };
+    webhook_job_completed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobEvent"];
+            };
+        };
+        responses: {
+            /** @description Received. Anything else, or no answer, is retried */
+            "2XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    webhook_job_failed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobEvent"];
+            };
+        };
+        responses: {
+            /** @description Received. Anything else, or no answer, is retried */
+            "2XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    webhook_job_item_completed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobItemEvent"];
+            };
+        };
+        responses: {
+            /** @description Received. Anything else, or no answer, is retried */
+            "2XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    webhook_job_item_failed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobItemEvent"];
+            };
+        };
+        responses: {
+            /** @description Received. Anything else, or no answer, is retried */
+            "2XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    webhook_webhook_test: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookTestEvent"];
+            };
+        };
+        responses: {
+            /** @description Received. Anything else, or no answer, is retried */
+            "2XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

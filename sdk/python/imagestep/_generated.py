@@ -8,29 +8,6 @@ from typing import Any, Literal
 from ._compat import Required, TypedDict
 
 
-class EndpointRequest(TypedDict, total=False):
-    """
-    Webhook endpoint create/update payload
-    """
-
-    description: str
-    """
-    Free-text label shown in listings
-    """
-    enabled: bool
-    """
-    Update only — ignored on create, where an endpoint starts enabled. `false` pauses deliveries; `true` resumes them and clears an automatic disable.
-    """
-    events: list[str]
-    """
-    Event types to receive. Omit it, or send `[]`, for every job-level event (`job.completed`, `job.failed`); the per-item events (`job.item.completed`, `job.item.failed`) are opt-in, because a 500-item job would otherwise be 500 deliveries nobody asked for. Any other value is `400 invalid_param`.
-    """
-    url: str
-    """
-    Where to POST events: an `https://` URL on port 443 whose host resolves to a public address. Required on create; on update, send it only to change it.
-    """
-
-
 class ApiError(TypedDict, total=False):
     """
     Structured error. Present on every 4xx/5xx response, absent on success.
@@ -56,359 +33,555 @@ class ApiError(TypedDict, total=False):
     """
     The id of this request, identical to the `X-Request-Id` response header. Quote it when reporting a failure: it is what finds the request in our logs.
     """
-    retryable: bool
+    retryable: Required[bool]
     """
     Whether repeating the same request unchanged could succeed. The whole reason this field exists is that an agent cannot infer it from the status code.
     """
 
 
-class PageMeta(TypedDict, total=False):
-    hasMore: bool
+class AssetBatchDeleteRequest(TypedDict, total=False):
     """
-    Whether there is another page
+    Batch delete request with the asset IDs to delete
     """
-    nextCursor: str | None
+
+    ids: Required[list[str]]
     """
-    Pass back as `cursor` for the rows after this page; null on the last page. Opaque — send it unchanged, with the same filters
-    """
-    page: int
-    """
-    The page served, from 0. Page mode only
-    """
-    perPage: int
-    """
-    Rows per page actually used (out of range is clamped)
-    """
-    total: int
-    """
-    Rows matching the filter. Page mode only: a cursor request counts nothing
+    Asset IDs to delete permanently, at most 10000
     """
 
 
-class WebhookEndpoint(TypedDict, total=False):
+class AssetBatchUpdateRequest(TypedDict, total=False):
     """
-    A URL this account receives job events at. The signing secret is masked on every read but the create and rotate-secret answers.
+    Batch update request with asset IDs and properties to update
     """
 
-    consecutiveFailures: int
+    collection: str
     """
-    Events in a row whose delivery ran out of retries since the last accepted one. At 5 the endpoint is disabled; any `2xx` resets it to 0.
+    Collection to put the assets in; "" takes them out of theirs (at most 200 characters; names starting with job: are reserved)
     """
-    createdAt: str
+    ids: Required[list[str]]
+    """
+    Asset IDs to update, at most 10000
+    """
+    published: bool
+    """
+    true publishes every listed asset (it gets a publicUrl), false takes them down; omit to leave them as they are
+    """
+    tags: list[str]
+    """
+    Replace the assets' tags with this list ([] clears them; omit to leave them). Your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
+    """
+
+
+class AssetImage(TypedDict, total=False):
+    """
+    What an asset is, as ingest measured it: type, pixel size, bytes, SHA-1, and the facts a caller would otherwise download the image to learn. A derived fact is absent when it could not be derived
+    """
+
+    animated: bool
+    """
+    Whether it has more than one frame or page
+    """
+    blurhash: str
+    """
+    A BlurHash placeholder to paint while the image loads. It has no alpha channel: prefer thumbhash for an image with transparency
+    """
+    colorSpace: str
+    """
+    The colour space the file is in, e.g. srgb or cmyk (a CMYK original goes grey on the web)
+    """
+    density: float
+    """
+    Dots per inch, when the file records it
+    """
+    dominantColor: str
+    """
+    The dominant colour, #rrggbb
+    """
+    hasAlpha: bool
+    """
+    Whether the file has an alpha channel (app stores refuse one)
+    """
+    hasIccProfile: bool
+    """
+    Whether the file embeds an ICC colour profile
+    """
+    height: Required[int]
+    """
+    Pixel height; 0 until ingest has measured it
+    """
+    mimeType: str
+    """
+    The type it is stored as, e.g. image/jpeg
+    """
+    opaque: bool
+    """
+    Whether every pixel is fully opaque — false only when the alpha channel is actually used
+    """
+    pages: int
+    """
+    Frame or page count; 1 for a still image
+    """
+    phash: str
+    """
+    64-bit perceptual hash, 16 hex digits: two images a few bits apart are the same picture, even re-encoded or resized. Meaningful for photographs, not flat graphics
+    """
+    sha1Hash: str
+    """
+    SHA-1 of the stored bytes, hex — the same bytes, not merely the same picture (that is phash)
+    """
+    size: Required[int]
+    """
+    Stored size in bytes; 0 until ingest has measured it
+    """
+    thumbhash: str
+    """
+    A ThumbHash placeholder — smaller than blurhash, closer to the picture, and it keeps alpha
+    """
+    width: Required[int]
+    """
+    Pixel width; 0 until ingest has measured it
+    """
+
+
+class AssetStatusRequest(TypedDict, total=False):
+    """
+    Asset IDs to poll, at most 100
+    """
+
+    ids: Required[list[str]]
+    """
+    Asset IDs to poll: at least one, at most 100; a repeated id is answered once
+    """
+
+
+class BatchDeleteResultDTO(TypedDict, total=False):
+    """
+    Result of a batch delete operation
+    """
+
+    deleted: list[str]
+    """
+    Identifiers of deleted items (IDs or slugs depending on the resource)
+    """
+    deletedCount: Required[int]
+    """
+    Number of items deleted
+    """
+
+
+class Bucket(TypedDict, total=False):
+    """
+    What was spent in one group, or in the whole window
+    """
+
+    credits: Required[int]
+    """
+    Credits charged, for the jobs created in the window
+    """
+    items: Required[int]
+    """
+    Items of those jobs that settled
+    """
+    jobs: Required[int]
+    """
+    Jobs created in the window
+    """
+    key: str
+    """
+    The group: an op name (or the raw type of a job submitted without one), an API key id or `console`, or a UTC date `YYYY-MM-DD`. Absent on the total
+    """
+    sync: Required[int]
+    """
+    Synchronous calls that succeeded and counted against the processing allowance
+    """
+
+
+CollectionRenamed = TypedDict(
+    'CollectionRenamed',
+    {
+        'from': str,
+        'to': str,
+        'updated': Required[int],
+    },
+    total=False,
+)
+
+
+class CollectionSummary(TypedDict, total=False):
+    """
+    One collection: its name, how many of your assets are in it, and when the latest was added
+    """
+
+    collection: str
+    """
+    The name, as GET /api/v1/assets?collection= takes it
+    """
+    count: Required[int]
+    """
+    Assets in it — the total GET /api/v1/assets?collection= reports
+    """
+    lastCreatedAt: int
+    """
+    Epoch millis the newest asset in it was created; the list is ordered by it, newest first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+
+
+class EndpointRequest(TypedDict, total=False):
+    """
+    Webhook endpoint create/update payload
+    """
+
     description: str
     """
-    Your label for it
-    """
-    disabledAt: str
-    """
-    When the service switched the endpoint off because 5 events in a row ran out of retries; absent otherwise. `PUT` with `enabled: true` clears it.
-    """
-    disabledReason: str
-    """
-    Why it was switched off: the count and the last delivery error
+    Free-text label shown in listings
     """
     enabled: bool
     """
-    Whether events are delivered. `false` when you paused it, or when the service disabled it (then `disabledAt` is set).
+    Update only — ignored on create, where an endpoint starts enabled. `false` pauses deliveries; `true` resumes them and clears an automatic disable.
     """
-    events: list[str]
+    events: list[
+        Literal['job.completed', 'job.failed', 'job.item.completed', 'job.item.failed']
+    ]
     """
-    The subscription as you set it. Absent or empty means every job-level event; per-item events are delivered only when listed here.
+    Event types to receive. Omit it, or send `[]`, for every job-level event (`job.completed`, `job.failed`); the per-item events (`job.item.completed`, `job.item.failed`) are opt-in, because a 500-item job would otherwise be 500 deliveries nobody asked for. Any other value is `400 invalid_param`.
     """
-    id: str
-    """
-    The endpoint's id, `whe_…`
-    """
-    secret: str
-    """
-    The signing secret in the clear, `whsec_…` — present only on the create and rotate-secret answers, so store it then. Every other read carries `secretHint` instead.
-    """
-    secretHint: str
-    """
-    The secret masked — its first 7 and last 4 characters — enough to tell which one your receiver holds, not enough to sign with
-    """
-    updatedAt: str
     url: str
     """
-    Where events are POSTed
-    """
-    userId: str
-
-
-class TemplateData(TypedDict, total=False):
-    """
-    HTML/CSS render template with {{ var }} placeholders; the input of the render_template op
-    """
-
-    builtIn: bool
-    """
-    Whether this is a built-in template (read-only; PUT and DELETE are 403)
-    """
-    createdAt: str
-    """
-    When the template — or, read as `id@version`, that version — was created
-    """
-    css: str
-    """
-    Stylesheet (≤ 128 KB as UTF-8). Like the html, it loads nothing but `data:` URIs and this product's own asset host; any other `@import` or `url()` is blocked at render time.
-    """
-    description: str
-    """
-    Free text for people; not rendered. `""` on a PUT empties it.
-    """
-    height: int
-    """
-    Viewport / output height in px (required on create; 1–4096)
-    """
-    html: str
-    """
-    Body HTML (required on create; ≤ 256 KB as UTF-8). Scripts never run; every request it makes is blocked at render time except `data:` URIs and this product's own asset host.
-    """
-    id: str
-    """
-    Template id (`tpl_…`; a built-in's is `builtin-template-…`). A version read by `id@version` carries that spelling here.
-    """
-    name: str
-    """
-    Display name (required on create; at most 200 characters)
-    """
-    slug: str
-    """
-    URL-safe handle, unique per account: lowercase letters, digits and hyphens. Generated from the name when omitted; one you send must be free. `builtin-` is reserved.
-    """
-    updatedAt: str
-    """
-    When the current version was saved; absent on a version read as `id@version`
-    """
-    variables: list[str]
-    """
-    Placeholder names (at most 100, each letters, digits, `_` and `.`). Derived from the html/css when omitted. A render fills `{{ name }}` HTML-escaped and `{{{ name }}}` raw; a name the row does not carry renders as nothing.
-    """
-    version: int
-    """
-    Current version; every PUT increments it and keeps the old one readable as `id@version`
-    """
-    width: int
-    """
-    Viewport / output width in px (required on create; 1–4096)
+    Where to POST events: an `https://` URL on port 443 whose host resolves to a public address. Required on create; on update, send it only to change it.
     """
 
 
-class ApiResponseTemplateData(TypedDict, total=False):
+class ErrorResponse(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    The answer to every failed request: `error` says what went wrong and whether to retry, and nothing else rides beside it — no `data`, no `meta`.
     """
 
-    data: TemplateData
+    error: Required[ApiError]
+    success: Required[bool]
     """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
+    Always `false` on a failure
     """
     timestamp: str
     """
-    Timestamp when the response was generated
+    When the response was generated
     """
 
 
-class PresetStep(TypedDict, total=False):
+class Feedback(TypedDict, total=False):
+    apiKeyId: str
     """
-    A preset step: either an L1 op from GET /api/v1/ops — {op, model?, prompt?, parameters?} — or a processing-registry step — {operation, params} — for what no op covers. Never both.
+    The API key this was reported with; absent when it came from a signed-in console session.
     """
-
-    model: str
+    context: dict[str, Any]
     """
-    AI steps: the model; the op's default when absent.
+    Anything structured worth keeping: the parameters tried, the client, the model.
+    """
+    createdAt: Required[str]
+    """
+    When it was filed
+    """
+    id: Required[str]
+    """
+    The report's id, `fbk_…`
+    """
+    kind: Required[Literal['capability_gap', 'bug', 'other']]
+    """
+    What kind of report it is, stored lower-case
+    """
+    message: Required[str]
+    """
+    What the reporter wrote, trimmed
     """
     op: str
     """
-    An op from GET /api/v1/ops (kind ai or deterministic).
-    """
-    operation: str
-    """
-    A processing-registry key (deterministic only), for steps no op covers.
-    """
-    parameters: dict[str, Any]
-    """
-    The op's parameters. A deterministic op's are checked against its catalogue contract when the steps are written, and so are `analyze`'s bounds; an AI image op's go to the model as sent.
-    """
-    params: Any
-    """
-    That registry step's arguments.
-    """
-    prompt: str
-    """
-    AI steps: the prompt. {{subject.<name>}} expands to that subject's descriptor.
+    The op this is about, when it is about one.
     """
 
 
-class PresetUsage(TypedDict, total=False):
+class FeedbackRequest(TypedDict, total=False):
     """
-    How often this preset has been run, over the jobs still on record — job records expire with the assets they produced, so this is the retention window and not all time. Read-only and derived.
-    """
-
-    lastRunAt: str
-    """
-    When the most recent of them was submitted.
-    """
-    runs: int
-    """
-    Jobs that ran this preset, at any version, within the retention window.
+    A report from an agent about something ImageStep could not do.
     """
 
-
-class StepWarning(TypedDict, total=False):
+    context: dict[str, Any]
     """
-    An advisory finding about a list of steps: legal, and probably not what was meant
+    Anything structured worth keeping — the parameters tried, the client, the model; at most 4000 characters once encoded as JSON.
     """
-
-    code: str
+    kind: Required[Literal['capability_gap', 'bug', 'other']]
     """
-    Machine-readable finding code from a closed set; the table is /docs/presets#warnings
+    What kind of report it is, matched case-insensitively
     """
-    message: str
+    message: Required[str]
     """
-    The finding in one sentence, naming the steps by index
+    What you were trying to do and what stopped you; at most 4000 characters.
     """
-    steps: list[int]
+    op: str
     """
-    The step indexes the finding is about, in order — the redundant one first
+    The op this is about, when it is about one — any name up to 64 characters; not checked against the catalogue.
     """
 
 
-class Subject(TypedDict, total=False):
+class FinishUploadRequest(TypedDict, total=False):
     """
-    A recurring character, product or location: reference images plus the locked words for it.
+    One staged object to turn into an asset
     """
 
-    descriptor: str
+    collection: str
     """
-    The locked description — colour, material, markings — at most 300 characters. Text pins what an image cannot show.
+    Optional collection to put the asset in: an opaque name, no hierarchy, at most 200 characters; names starting with job: are reserved
+    """
+    name: Required[str]
+    """
+    The file's name; its extension decides the type, and the asset is named after its stem, cut to 200 characters
+    """
+    objectId: Required[str]
+    """
+    The objectId stage-upload returned for this file
+    """
+    retentionDays: int
+    """
+    Keep the asset this many days instead of your plan's retention — shorter only; more is kept for the plan's time (imagestep#591). Its `expiresAt` says what was stamped.
+    """
+    tags: list[str]
+    """
+    Optional tags for the new asset: your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
+    """
+
+
+class FinishedUpload(TypedDict, total=False):
+    """
+    One asset finish-upload created
+    """
+
+    id: Required[str]
+    """
+    The new asset's ID
     """
     name: str
     """
-    Lowercase handle (`[a-z0-9][a-z0-9_-]{0,39}`, unique among the subjects), referenced in a prompt as {{subject.<name>}}.
+    Its name: the file name without its extension
     """
-    referenceAssetIds: list[str]
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
     """
-    Your own DONE asset ids showing this subject. They pin the geometry.
-    """
-
-
-class WebhookDeliverySummary(TypedDict, total=False):
-    """
-    One webhook delivery attempt: did it arrive, after how many tries, and what did the receiver say
-    """
-
-    attempts: int
-    """
-    How many HTTP attempts have been made
-    """
-    createdAt: str
-    """
-    When the event was queued; retries stop 24 hours after it
-    """
-    deliveredAt: str
-    """
-    When a 2xx came back
-    """
-    error: str
-    """
-    Why the last attempt failed, when it did: `HTTP 503`, a connection error, `target refused: …` when the host resolved to a non-public address (no request was sent), or `endpoint disabled`
-    """
-    eventId: str
-    """
-    The event this delivered; the same id is in the body's `id` and on every retry
-    """
-    eventType: str
-    """
-    Event type, e.g. job.completed
-    """
-    id: str
-    """
-    The delivery's id, `whd_…`
-    """
-    nextAttemptAt: str
-    """
-    When the next retry is due, while status is PENDING
-    """
-    responseStatus: int
-    """
-    The last attempt's HTTP status, or null when the request never got one (DNS, timeout, TLS)
-    """
-    status: str
-    """
-    PENDING while retries remain, DELIVERED once a 2xx came back, FAILED when it gave up — 24 hours after the event was queued, after a test's single attempt, or when the endpoint was disabled or deleted with the event still queued
+    PROCESSING until ingest has measured it — poll POST /api/v1/assets/status
     """
 
 
-class BatchImportResultDTOTemplateData(TypedDict, total=False):
+class FromUrlRequest(TypedDict, total=False):
     """
-    What an import did: the entries that landed, and one line for each that did not
-    """
-
-    data: list[TemplateData]
-    """
-    The created resources, as saved, in the order sent
-    """
-    errors: list[str]
-    """
-    One line per refused entry, naming its index and why (`Preset at index 2 'Hero': …`). Absent when every entry landed.
-    """
-    importedCount: int
-    """
-    How many entries were created — the length of `data`
+    Images to ingest by URL
     """
 
+    collection: str
+    """
+    Collection to put every new asset in (optional; at most 200 characters, and names starting with job: are reserved).
+    """
+    retentionDays: int
+    """
+    Keep every new asset this many days instead of your plan's retention — shorter only; more is kept for the plan's time (imagestep#591). Each asset's `expiresAt` says what was stamped.
+    """
+    tags: list[str]
+    """
+    Tags attached to every new asset (optional): your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
+    """
+    urls: Required[list[str]]
+    """
+    Public http(s) image URLs, fetched by this service: at least one, at most 20.
+    """
 
-class PipelineStep(TypedDict, total=False):
-    disabled: bool
-    operation: str
-    params: Any
 
-
-class StepEstimate(TypedDict, total=False):
+class ImageMetadata(TypedDict, total=False):
     """
-    One segment of a chain job's cost
+    An image read without storing it: the facts an asset's `image` would have, and its metadata
     """
 
-    bound: bool
+    durationMs: int
     """
-    True when this segment's model is priced by the size of the image it is sent: `costPerItem` is set at the largest image that model is ever sent (`maxInputEdge`), and it is what every item is charged, whatever the size of its own image. Absent means the price does not depend on the image.
+    How long the worker took, in milliseconds
     """
-    costPerItem: int
+    image: Required[AssetImage]
     """
-    Credits one item costs on this segment; 0 for a process segment
+    The fields of an asset's `image`, measured from these bytes — so what you read before storing is what the asset says after
     """
-    index: int
+    metadata: Required[dict[str, str]]
     """
-    Segment index, 0-based
+    Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map an asset stores as `metadata`; every value is a string
     """
-    maxInputEdge: int
+
+
+class ImageModelPrice(TypedDict, total=False):
     """
-    The longest edge, in pixels, of the image this segment's model is handed; absent for a process segment
+    A model's published price: ours, after markup, beside the provider's own list price
     """
-    model: str
+
+    categories: list[str]
     """
-    The model this segment would call; absent for a process segment
+    What the model is sold for — an op's `modelCategory` is one of these
+    """
+    description: str
+    """
+    What the model does
+    """
+    id: Required[str]
+    """
+    The model's id, as `model` names it
+    """
+    name: str
+    """
+    The model's name
+    """
+    priceFrom: str
+    """
+    Our lowest price per image, in USD, as a decimal string
+    """
+    priceRange: str
+    """
+    Our price per image, or its range, written for a person
+    """
+    providerPrice: str
+    """
+    The provider's own list price per image, in USD, before our markup — the cheapest end when the price has a range
+    """
+    providerPriceRange: str
+    """
+    The provider's list price across the same span as `priceRange`, for a model whose cost depends on a parameter; absent when one number covers it
+    """
+    series: str
+    """
+    The provider family
+    """
+
+
+class ImportFailure(TypedDict, total=False):
+    """
+    Why one entry of an import was refused: its index, and the fields of an `ItemError`
+    """
+
+    code: Required[str]
+    """
+    An `ErrorCode` from the closed set: `invalid_param` for an entry that fails its checks, `resource_limit_exceeded` for one past a ceiling
+    """
+    index: Required[int]
+    """
+    The entry's position in what you sent, from 0
+    """
+    message: Required[str]
+    """
+    One sentence for a person; branch on `code`
+    """
+    param: str
+    """
+    The offending parameter of the entry, when one is to blame
+    """
+    retryable: Required[bool]
+    """
+    Whether sending the same entry again could succeed
+    """
+
+
+class ItemError(TypedDict, total=False):
+    """
+    Why one entry did not work out — one URL, one staged file, one asset's ingest, one imported entry: the same fields as an API error. Branch on `code` and `retryable`, never on `message`; the field that carries it lists the codes it sends
+    """
+
+    code: Required[str]
+    """
+    An `ErrorCode` from the closed set, as in an API error
+    """
+    message: Required[str]
+    """
+    One sentence for a person; branch on `code`
+    """
+    param: str
+    """
+    The offending parameter, when one is to blame
+    """
+    retryable: Required[bool]
+    """
+    Whether sending the same thing again could succeed
+    """
+
+
+class JobCount(TypedDict, total=False):
+    """
+    How many of your jobs are in one status and of one type. Only non-zero cells are listed.
+    """
+
+    count: Required[int]
+    """
+    Jobs in this status and of this type, under the request's filters
+    """
+    status: Literal[
+        'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
+    ]
+    """
+    The cell's status
+    """
+    type: Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    """
+    The cell's job type
+    """
+
+
+class JobEventData(TypedDict, total=False):
+    """
+    `job.completed` / `job.failed`: the settled job's numbers
+    """
+
+    actualCredits: Required[int]
+    """
+    What the job cost, in credits
+    """
+    cancelledItems: Required[int]
+    """
+    Items a cancel stopped before they ran
+    """
+    completedItems: Required[int]
+    """
+    Items that completed
+    """
+    creditsCharged: Required[int]
+    """
+    Deprecated: `actualCredits`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
+    """
+    errorCode: str
+    """
+    The job's verdict on its failed items, from the closed set of error codes (§11); absent when no item failed
+    """
+    failedItems: Required[int]
+    """
+    Items that failed
+    """
+    id: Required[str]
+    """
+    The job, `job_…` — `id` on `GET /jobs/{id}`
+    """
+    jobId: Required[str]
+    """
+    Deprecated: `id`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
     """
     op: str
     """
-    What the segment runs: `process` for a pipeline pass, else the AI op's name
+    The op it was submitted as, when it was submitted as one
+    """
+    retryable: bool
+    """
+    Whether a resume could help; absent when no item failed
+    """
+    status: Required[Literal['COMPLETED', 'FAILED', 'CANCELLED']]
+    """
+    The terminal status it settled at; `job.failed` carries `FAILED` or `CANCELLED`
+    """
+    totalItems: Required[int]
+    """
+    Items in the job
+    """
+    type: Required[
+        Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    ]
+    """
+    The job's type
     """
 
 
@@ -507,913 +680,248 @@ class JobItem(TypedDict, total=False):
     """
 
 
-class JobPipeline(TypedDict, total=False):
+class JobItemEventData(TypedDict, total=False):
     """
-    One pass a deterministic job runs: a name — the variant's, when there is a set of them — and its registry steps
-    """
-
-    name: str
-    """
-    The variant's name, or `op:<name>` for a single op
-    """
-    steps: list[PipelineStep]
-    """
-    The registry steps, in order
+    `job.item.completed` / `job.item.failed`: one item's outcome
     """
 
+    error: str
+    """
+    A failed item: why, in one sentence for a person
+    """
+    errorCode: str
+    """
+    A failed item: the code to branch on, from the closed set of error codes (§11)
+    """
+    failedStep: int
+    """
+    `chain` only: the segment a failed item failed on, from 0 — where a resume restarts it
+    """
+    index: Required[int]
+    """
+    The item's position in the job, from 0 — `index` on the job's items
+    """
+    itemIndex: Required[int]
+    """
+    Deprecated: `index`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-webhook-names
+    """
+    jobId: Required[str]
+    """
+    The job the item belongs to, `job_…`
+    """
+    op: str
+    """
+    The op the job was submitted as, when it was submitted as one
+    """
+    output: dict[str, Any]
+    """
+    `analyze` only: the answer, in the default schema's shape or your `parameters.schema`
+    """
+    resultAssetId: str
+    """
+    The asset it made, once `COMPLETED`; absent for `analyze`, whose product is `output`
+    """
+    retryable: bool
+    """
+    A failed item: whether a resume could succeed — the code's own flag
+    """
+    settledItems: Required[int]
+    """
+    Items of the job settled so far, this one included
+    """
+    sourceAssetId: str
+    """
+    The asset it ran on; absent for an image generated from a prompt or a render row
+    """
+    status: Required[Literal['COMPLETED', 'FAILED']]
+    """
+    How the item settled
+    """
+    step: int
+    """
+    `chain` only: the segment the item is on, from 0 — a chain's item is delivered once per segment
+    """
+    totalItems: Required[int]
+    """
+    Items in the job
+    """
+    type: Required[
+        Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    ]
+    """
+    The job's type
+    """
 
-class JobSegment(TypedDict, total=False):
+
+class JobSummary(TypedDict, total=False):
     """
-    One segment of a `chain`: a deterministic pass or one AI step, and what it costs per item
+    One row of `GET /api/v1/jobs`: the same fields as `Job` — what ran, how far it got, what it cost — minus `items` (with `itemsTruncated` and `itemsNextCursor`), `steps`, `subjects`, `pipelines`, `segments`, `parameters`, `prompt`, `references` and `collection`. Read the job by id for those.
     """
 
-    bound: bool
+    actualCredits: Required[int]
     """
-    True when the model bills by the size of the image it is sent: `costPerItem` was priced at the largest image it is ever sent, and it is the charge whatever the size of an item's own
+    Credits charged: set when the job settles, for the work that completed; 0 until then, and for deterministic work, which spends none
     """
-    costPerItem: int
+    apiKeyId: str
     """
-    Credits one item costs on this segment, frozen at submit; 0 for a deterministic one
+    The API key that submitted it; absent for a signed-in console session
+    """
+    attemptNumber: Required[int]
+    """
+    1 for a fresh job, one more for each resume
+    """
+    cancelledItems: Required[int]
+    """
+    Items cancelled before they ran
+    """
+    completedAt: str
+    """
+    When it reached a terminal status
+    """
+    completedItems: Required[int]
+    """
+    Items that completed
+    """
+    costPerItem: Required[int]
+    """
+    Credits one item is priced at — what the job was quoted; 0 for deterministic work, and on a chain the sum of its segments
+    """
+    createdAt: Required[str]
+    """
+    When it was submitted
+    """
+    errorCode: str
+    """
+    The verdict on the failed items, from the closed set of error codes: a retryable item's code when any is retryable, else the first failed item's. Absent when nothing failed, or no failure was classified
+    """
+    errorMessage: str
+    """
+    On a job with failed items, one line for a person ("2 of 3 items failed"); each item carries its own `error`
+    """
+    expiresAt: str
+    """
+    When the record is swept — the plan's retention window at submit, the same as the assets it made. Never shortened by a downgrade
+    """
+    failedItems: Required[int]
+    """
+    Items that failed — each says why, and whether a resume could help
+    """
+    id: Required[str]
+    """
+    The job's id, `job_…`
     """
     model: str
     """
-    An AI segment's model
+    The model the job calls; absent for deterministic work, and on a chain, whose segments name their own
     """
     op: str
     """
-    The op the segment runs; absent for a pass built from registry steps only
+    The op it was submitted as, when it was submitted as one — what usage groups by
     """
-    parameters: dict[str, Any]
+    parentJobId: str
     """
-    An AI segment's parameters
+    The attempt this one resumed; absent on a first attempt
     """
-    pipeline: list[PipelineStep]
+    presetId: str
     """
-    A deterministic segment's steps, as one pass
+    The preset it ran, by id; absent for an op, inline steps or a render
     """
-    prompt: str
+    presetName: str
     """
-    An AI segment's prompt, every `{{subject.<name>}}` expanded
+    The preset's name; `op:<name>` for an op, `Ad-hoc` for a bare type and model; absent for a render
     """
-    type: Literal['ai-generate', 'ai-edit', 'parse', 'process']
+    presetVersion: int
     """
-    What the segment runs as: a deterministic pass, or an AI op's job type
+    The version of the preset it ran — a later edit of the preset never changes it
     """
-
-
-class ApiResponseObject(TypedDict, total=False):
+    retryable: bool
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    Whether a resume could help: true when at least one failed item failed for a reason that may pass. Absent with `errorCode`
     """
-
-    data: Any
+    rootJobId: str
     """
-    The response data payload
+    The first attempt's id — the job's own on a first attempt, and the same on every resume of it, so `GET /api/v1/jobs?rootJobId=` lists every attempt
     """
-    error: ApiError
+    settledItems: Required[int]
     """
-    Structured error; present exactly when the request failed
+    Items that reached an end — completed, failed or cancelled
     """
-    message: str
+    status: Required[
+        Literal[
+            'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
+        ]
+    ]
     """
-    Human-readable message about the response
+    `PENDING` waits for a slot (an account runs a few jobs of one type at a time; the rest queue), `PROCESSING` is running and `CANCELLING` is a cancel waiting for items already running. Then one of the terminal three: `COMPLETED` (no item failed), `FAILED` (at least one did — read the items) or `CANCELLED`.
     """
-    meta: PageMeta
+    stepCount: int
     """
-    Pagination metadata for list responses
+    How many inline `steps` the job ran; absent for an op or a preset job
     """
-    success: bool
+    submittedAt: str
     """
-    Indicates if the request was successful
+    When it left the queue and started running
     """
-    timestamp: str
+    submittedItems: Required[int]
     """
-    Timestamp when the response was generated
-    """
-
-
-class SyncReferenceInput(TypedDict, total=False):
-    """
-    The JSON form of a synchronous call: a reference to the image instead of its bytes. Give `assetId` or `url`. On `/images/transform` the op, preset and parameters may ride here too; a query parameter of the same name wins.
-    """
-
-    assetId: str
-    """
-    One of your assets, read by this service (its browser-readable rendition when it has one)
-    """
-    op: str
-    """
-    Transform only: the op, as `?op=`
-    """
-    parameters: dict[str, Any]
-    """
-    Transform with `op` only: the op's parameters. A key also in the query string takes the query's value.
-    """
-    preset: str
-    """
-    Transform only: the preset, as `?preset=`
-    """
-    url: str
-    """
-    An image on the internet, fetched by this service: `http(s)` only, never a private or loopback address, redirects not followed. Its format is the type it was served as, else the one its extension names
-    """
-
-
-class RenderRequest(TypedDict, total=False):
-    """
-    One template and one row of data
-    """
-
-    data: dict[str, Any]
-    """
-    The row: variable name → value. `{{ name }}` is filled HTML-escaped, `{{{ name }}}` raw, `a.b` reads nested data; a name the row does not carry renders as nothing.
+    Items handed to a provider or worker so far
     """
     templateId: str
     """
-    Template id, your own slug, or either with `@version` to pin one version (required)
+    `render` only: the template, by id
     """
-
-
-class ApiResponseMapStringObject(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: dict[str, Any]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class FeedbackRequest(TypedDict, total=False):
-    """
-    A report from an agent about something ImageStep could not do.
-    """
-
-    context: dict[str, Any]
-    """
-    Anything structured worth keeping — the parameters tried, the client, the model; at most 4000 characters once encoded as JSON.
-    """
-    kind: Required[str]
-    """
-    capability_gap · bug · other, matched case-insensitively
-    """
-    message: Required[str]
-    """
-    What you were trying to do and what stopped you; at most 4000 characters.
-    """
-    op: str
-    """
-    The op this is about, when it is about one — any name up to 64 characters; not checked against the catalogue.
-    """
-
-
-class Feedback(TypedDict, total=False):
-    apiKeyId: str
-    """
-    The API key this was reported with; absent when it came from a signed-in console session.
-    """
-    context: dict[str, Any]
-    """
-    Anything structured worth keeping: the parameters tried, the client, the model.
-    """
-    createdAt: str
-    id: str
-    """
-    The report's id, `fbk_…`
-    """
-    kind: str
-    """
-    capability_gap · bug · other, stored lower-case
-    """
-    message: str
-    """
-    What the reporter wrote, trimmed
-    """
-    op: str
-    """
-    The op this is about, when it is about one.
-    """
-    userId: str
-
-
-class UploadedAsset(TypedDict, total=False):
-    """
-    The asset one upload created, or the one the account already held for the same bytes
-    """
-
-    existing: bool
-    """
-    true when the account already had a DONE asset with the same SHA-1 — that asset is returned and nothing new is stored
-    """
-    id: str
-    """
-    Asset id
-    """
-    name: str
-    """
-    Asset name (the file name without its extension)
-    """
-    status: str
-    """
-    PROCESSING for a new asset; DONE when `existing` is true
-    """
-
-
-class AssetBatchUpdateRequest(TypedDict, total=False):
-    """
-    Batch update request with asset IDs and properties to update
-    """
-
-    collection: str
-    """
-    Collection to put the assets in; "" takes them out of theirs (at most 200 characters; names starting with job: are reserved)
-    """
-    ids: Required[list[str]]
-    """
-    Asset IDs to update, at most 10000
-    """
-    published: bool
-    """
-    true publishes every listed asset (it gets a publicUrl), false takes them down; omit to leave them as they are
-    """
-    tags: list[str]
-    """
-    Replace the assets' tags with this list ([] clears them; omit to leave them). Your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
-    """
-
-
-class AssetError(TypedDict, total=False):
-    """
-    Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed
-    """
-
-    code: str
-    """
-    An `ErrorCode`, as in an API error
-    """
-    message: str
-    """
-    What was wrong, in the decoder's words when the file is the problem
-    """
-    retryable: bool
-    """
-    Whether uploading the same file again could succeed
-    """
-
-
-class AssetImage(TypedDict, total=False):
-    """
-    What an asset is, as ingest measured it: type, pixel size, bytes, SHA-1, and the facts a caller would otherwise download the image to learn. A derived fact is absent when it could not be derived
-    """
-
-    animated: bool
-    """
-    Whether it has more than one frame or page
-    """
-    blurhash: str
-    """
-    A BlurHash placeholder to paint while the image loads. It has no alpha channel: prefer thumbhash for an image with transparency
-    """
-    colorSpace: str
-    """
-    The colour space the file is in, e.g. srgb or cmyk (a CMYK original goes grey on the web)
-    """
-    density: float
-    """
-    Dots per inch, when the file records it
-    """
-    dominantColor: str
-    """
-    The dominant colour, #rrggbb
-    """
-    hasAlpha: bool
-    """
-    Whether the file has an alpha channel (app stores refuse one)
-    """
-    hasIccProfile: bool
-    """
-    Whether the file embeds an ICC colour profile
-    """
-    height: int
-    """
-    Pixel height; 0 until ingest has measured it
-    """
-    mimeType: str
-    """
-    The type it is stored as, e.g. image/jpeg
-    """
-    opaque: bool
-    """
-    Whether every pixel is fully opaque — false only when the alpha channel is actually used
-    """
-    pages: int
-    """
-    Frame or page count; 1 for a still image
-    """
-    phash: str
-    """
-    64-bit perceptual hash, 16 hex digits: two images a few bits apart are the same picture, even re-encoded or resized. Meaningful for photographs, not flat graphics
-    """
-    sha1Hash: str
-    """
-    SHA-1 of the stored bytes, hex — the same bytes, not merely the same picture (that is phash)
-    """
-    size: int
-    """
-    Stored size in bytes; 0 until ingest has measured it
-    """
-    thumbhash: str
-    """
-    A ThumbHash placeholder — smaller than blurhash, closer to the picture, and it keeps alpha
-    """
-    width: int
-    """
-    Pixel width; 0 until ingest has measured it
-    """
-
-
-class Step(TypedDict, total=False):
-    """
-    Which segment of a chain produced the asset
-    """
-
-    count: int
-    """
-    How many segments the chain has
-    """
-    index: int
-    """
-    The segment, 0-based
-    """
-
-
-class AssetStatusRequest(TypedDict, total=False):
-    """
-    Asset IDs to poll, at most 100
-    """
-
-    ids: Required[list[str]]
-    """
-    Asset IDs to poll: at least one, at most 100; a repeated id is answered once
-    """
-
-
-class AssetStatus(TypedDict, total=False):
-    """
-    One asset's ingest state
-    """
-
-    error: AssetError
-    """
-    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
-    """
-    height: int
-    """
-    Pixel height, once ingest has measured it
-    """
-    id: str
-    """
-    Asset ID
-    """
-    status: Literal['PROCESSING', 'DONE', 'FAILED']
-    """
-    PROCESSING while ingest runs; DONE and FAILED are final
-    """
-    width: int
-    """
-    Pixel width, once ingest has measured it
-    """
-
-
-class AssetStatuses(TypedDict, total=False):
-    """
-    Ingest states for a batch of assets
-    """
-
-    items: list[AssetStatus]
-    """
-    One entry per asset of yours in the request, in request order; IDs that are not yours are simply absent
-    """
-
-
-class StageUploadRequest(TypedDict, total=False):
-    """
-    Request object for staging file upload
-    """
-
-    fileName: str
-    """
-    Original file name; its extension must be an image type this service accepts, and decides the Content-Type the PUT is signed for
-    """
-    fileSize: Required[int]
-    """
-    Size of the file in bytes, at most 100 MB. Signed into the URL: the PUT must send exactly this Content-Length
-    """
-    sha1Hash: str
-    """
-    SHA-1 of the file, hex (optional): when it matches a DONE asset you already hold, the answer says so
-    """
-
-
-class StageUploadResponse(TypedDict, total=False):
-    """
-    Response object for staged upload containing pre-signed URL and duplicate detection info
-    """
-
-    contentType: str
-    """
-    The Content-Type this presigned URL is signed for (#48). The PUT MUST send exactly this value, and a Content-Length equal to the fileSize you declared — the signature covers both, so any other value is rejected by the object store. It is derived from your file name; you do not choose it.
-    """
-    error: str
+    templateName: str
     """
-    Why this file was not staged (no image extension this service accepts, or over the 100 MB limit). When present, objectId and url are absent: skip the file
+    `render` only: the template's name
     """
-    existingAssetId: str
+    templateVersion: int
     """
-    Id of the caller's existing asset with the same SHA1 (present only when exists=true)
+    `render` only: the version of the template it rendered
     """
-    exists: bool
+    totalItems: Required[int]
     """
-    True when the caller already has an asset with this SHA1. The objectId/url above are still a fresh, EMPTY upload slot: either PUT the bytes and finish-upload as usual, or skip both and use existingAssetId.
+    How many items the job has — one per asset (times the variants), per image to generate, or per render row
     """
-    objectId: str
+    type: Required[
+        Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    ]
     """
-    The staged object's key — `<your account id>/<uuid>`. Opaque: send it back to finish-upload unchanged. Absent when `error` is set
+    What the job runs as — decided by the op, preset or steps it was submitted with
     """
-    sha1Hash: str
-    """
-    The sha1Hash you sent, echoed so you can match the answer to your file
-    """
-    url: str
-    """
-    Pre-signed URL to PUT the bytes to, valid for 60 minutes. Absent when `error` is set
-    """
-
-
-class PreviewUrlsRequest(TypedDict, total=False):
-    """
-    Request object for signing preview URLs
-    """
-
-    ids: Required[list[str]]
-    """
-    Asset IDs to sign: at least one, at most 100; a repeated id is answered once
-    """
-
-
-class Error(TypedDict, total=False):
-    """
-    Why ingest failed — on FAILED only (imagestep#734)
-    """
-
-    code: str
-    """
-    An `ErrorCode`, as in an API error
-    """
-    message: str
-    """
-    What was wrong, in the decoder's words when the file is the problem
-    """
-    retryable: bool
-    """
-    Whether uploading the same file again could succeed
-    """
-
-
-class PreviewUrl(TypedDict, total=False):
-    """
-    One asset's preview: a signed URL for its small rendition when it exists, plus enough state to know why it does not yet
-    """
-
-    error: Error
-    """
-    Why ingest failed — on FAILED only (imagestep#734)
-    """
-    expiresAt: int | None
-    """
-    When `url` stops working, epoch millis; absent when `url` is
-    """
-    height: int | None
-    """
-    Pixel height, once known
-    """
-    id: str
-    """
-    Asset ID
-    """
-    status: Literal['PROCESSING', 'DONE', 'FAILED']
-    """
-    Ingest state; a preview exists once this is DONE
-    """
-    url: str | None
-    """
-    Signed URL for the preview, a WebP at most 400 px wide; absent while ingest is still running or after it failed
-    """
-    width: int | None
-    """
-    Pixel width, once known
-    """
-
-
-class PreviewUrls(TypedDict, total=False):
-    """
-    Signed preview URLs for a page of assets
-    """
-
-    items: list[PreviewUrl]
-    """
-    One entry per asset of yours in the request, in request order; IDs that are not yours are simply absent
-    """
-    ttlSeconds: int
-    """
-    How long each `url` is valid from the moment it was signed
-    """
-
-
-class FromUrlRequest(TypedDict, total=False):
-    """
-    Images to ingest by URL
-    """
-
-    collection: str
-    """
-    Collection to put every new asset in (optional; at most 200 characters, and names starting with job: are reserved).
-    """
-    retentionDays: int
-    """
-    Keep every new asset this many days instead of your plan's retention — shorter only; more is kept for the plan's time (imagestep#591). Each asset's `expiresAt` says what was stamped.
-    """
-    tags: list[str]
-    """
-    Tags attached to every new asset (optional): your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
-    """
-    urls: Required[list[str]]
-    """
-    Public http(s) image URLs, fetched by this service: at least one, at most 20.
-    """
-
-
-class ItemError(TypedDict, total=False):
-    """
-    Why one URL did not become an asset — the same fields as an error response
-    """
-
-    code: str
-    """
-    A code from the closed set: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit) or `internal_error` (storing it failed on our side; retryable)
-    """
-    message: str
-    """
-    One sentence for a person; branch on `code`
-    """
-    param: str
-    """
-    The offending parameter: `url`, or `file` for a body over the limit
-    """
-    retryable: bool
-    """
-    Whether the same URL may succeed if sent again
-    """
-
-
-class FinishUploadRequest(TypedDict, total=False):
-    """
-    One staged object to turn into an asset
-    """
-
-    collection: str
-    """
-    Optional collection to put the asset in: an opaque name, no hierarchy, at most 200 characters; names starting with job: are reserved
-    """
-    name: Required[str]
-    """
-    The file's name; its extension decides the type, and the asset is named after its stem, cut to 200 characters
-    """
-    objectId: Required[str]
-    """
-    The objectId stage-upload returned for this file
-    """
-    retentionDays: int
-    """
-    Keep the asset this many days instead of your plan's retention — shorter only; more is kept for the plan's time (imagestep#591). Its `expiresAt` says what was stamped.
-    """
-    tags: list[str]
-    """
-    Optional tags for the new asset: your own labels, matched exactly by GET /api/v1/assets?tag= (at most 50, each at most 100 characters)
-    """
-
-
-class FinishedUpload(TypedDict, total=False):
-    """
-    One asset finish-upload created
-    """
-
-    id: str
-    """
-    The new asset's ID
-    """
-    name: str
-    """
-    Its name: the file name without its extension
-    """
-    status: Literal['PROCESSING', 'DONE', 'FAILED']
-    """
-    PROCESSING until ingest has measured it — poll POST /api/v1/assets/status
-    """
-
-
-class AssetBatchDeleteRequest(TypedDict, total=False):
-    """
-    Batch delete request with the asset IDs to delete
-    """
-
-    ids: Required[list[str]]
-    """
-    Asset IDs to delete permanently, at most 10000
-    """
-
-
-class BatchDeleteResultDTO(TypedDict, total=False):
-    """
-    Result of a batch delete operation
-    """
-
-    deleted: list[str]
-    """
-    Identifiers of deleted items (IDs or slugs depending on the resource)
-    """
-    deletedCount: int
-    """
-    Number of items deleted
-    """
-
-
-RenameCollectionRequest = TypedDict(
-    'RenameCollectionRequest',
-    {
-        'from': Required[str],
-        'to': Required[str],
-    },
-    total=False,
-)
-
-
-CollectionRenamed = TypedDict(
-    'CollectionRenamed',
-    {
-        'from': str,
-        'to': str,
-        'updated': int,
-    },
-    total=False,
-)
-
-
-class ApiResponseListWebhookEndpoint(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[WebhookEndpoint]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ApiResponseListWebhookDeliverySummary(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[WebhookDeliverySummary]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class Bucket(TypedDict, total=False):
-    """
-    What was spent in one group, or in the whole window
-    """
-
-    credits: int
-    """
-    Credits charged, for the jobs created in the window
-    """
-    items: int
-    """
-    Items of those jobs that settled
-    """
-    jobs: int
-    """
-    Jobs created in the window
-    """
-    key: str
-    """
-    The group: an op name (or the raw type of a job submitted without one), an API key id or `console`, or a UTC date `YYYY-MM-DD`. Absent on the total
-    """
-    sync: int
-    """
-    Synchronous calls that succeeded and counted against the processing allowance
-    """
-
 
-Usage = TypedDict(
-    'Usage',
-    {
-        'from': str,
-        'groupBy': Literal['op', 'key', 'day'],
-        'groups': list[Bucket],
-        'to': str,
-        'total': Bucket,
-    },
-    total=False,
-)
 
-
-class TemplateSummary(TypedDict, total=False):
+class ModelParam(TypedDict, total=False):
     """
-    A template as it is listed: everything but its html and css, which GET /api/v1/templates/{id} returns
+    One parameter a model takes — the shape of an op's `params` entry
     """
 
-    builtIn: bool
-    """
-    Whether this is a built-in template (read-only)
-    """
-    createdAt: str
+    default: Any
     """
-    When the template was created
+    What the model uses when the key is left out
     """
     description: str
     """
-    Free text for people
+    What it does
     """
-    height: int
+    enum: list[Any]
     """
-    Output height in px
+    The values it takes; any other is `400 invalid_param`
     """
-    id: str
+    max: float
     """
-    Template id (`tpl_…`, or `builtin-template-…`); `id@version` addresses one frozen version
+    The largest value it takes
     """
-    name: str
+    min: float
     """
-    Display name
+    The smallest value it takes
     """
-    slug: str
+    title: Required[str]
     """
-    URL-safe slug
+    Its name, for a person
     """
-    updatedAt: str
+    type: Required[Literal['integer', 'number', 'string', 'boolean']]
     """
-    When its current version was saved — the order your own rows are listed in
-    """
-    variables: list[str]
-    """
-    Placeholder names a render fills in
-    """
-    version: int
-    """
-    Current version
-    """
-    width: int
-    """
-    Output width in px
-    """
-
-
-class ApiResponseListTemplateData(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[TemplateData]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ImageModelPrice(TypedDict, total=False):
-    """
-    A model's published price: ours, after markup, beside the provider's own list price
-    """
-
-    categories: list[str]
-    """
-    What the model is sold for — an op's `modelCategory` is one of these
-    """
-    description: str
-    """
-    What the model does
-    """
-    id: str
-    """
-    The model's id, as `model` names it
-    """
-    name: str
-    """
-    The model's name
-    """
-    priceFrom: str
-    """
-    Our lowest price per image, in USD, as a decimal string
-    """
-    priceRange: str
-    """
-    Our price per image, or its range, written for a person
-    """
-    providerPrice: str
-    """
-    The provider's own list price per image, in USD, before our markup — the cheapest end when the price has a range
-    """
-    providerPriceRange: str
-    """
-    The provider's list price across the same span as `priceRange`, for a model whose cost depends on a parameter; absent when one number covers it
-    """
-    series: str
-    """
-    The provider family
+    The JSON type of the value
     """
 
 
@@ -1456,58 +964,680 @@ class OpPricing(TypedDict, total=False):
     """
 
 
-class JobSummary(TypedDict, total=False):
+class PageMeta(TypedDict, total=False):
+    hasMore: bool
     """
-    One row of `GET /api/v1/jobs`: the job's own fields, as on `Job` — what ran, how far it got, what it cost — without `items`, `steps`, `subjects`, `pipelines`, `segments`, `parameters`, `prompt`, `references` or `collection`. Read the job by id for those.
+    Whether there is another page
+    """
+    nextCursor: str | None
+    """
+    Pass back as `cursor` for the rows after this page; null on the last page. Opaque — send it unchanged, with the same filters
+    """
+    page: int
+    """
+    The page served, from 0. Page mode only
+    """
+    perPage: int
+    """
+    Rows per page actually used (out of range is clamped)
+    """
+    total: int
+    """
+    Rows matching the filter. Page mode only: a cursor request counts nothing
     """
 
-    actualCredits: int
-    apiKeyId: str
+
+class PipelineStep(TypedDict, total=False):
+    disabled: bool
+    operation: str
+    params: dict[str, Any]
     """
-    The API key that submitted it; absent for a signed-in console session
+    The registry step's arguments
     """
-    attemptNumber: int
-    cancelledItems: int
-    completedAt: str
-    completedItems: int
-    costPerItem: int
+
+
+class PresetStep(TypedDict, total=False):
     """
-    Credits one item is priced at — what the job was quoted; 0 for deterministic work, and on a chain the sum of its segments
+    A preset step: either an L1 op from GET /api/v1/ops — {op, model?, prompt?, parameters?} — or a processing-registry step — {operation, params} — for what no op covers. Never both.
+    """
+
+    model: str
+    """
+    AI steps: the model; the op's default when absent.
+    """
+    op: str
+    """
+    An op from GET /api/v1/ops (kind ai or deterministic).
+    """
+    operation: str
+    """
+    A processing-registry key (deterministic only), for steps no op covers.
+    """
+    parameters: dict[str, Any]
+    """
+    The op's parameters. A deterministic op's are checked against its catalogue contract when the steps are written, and so are `analyze`'s bounds; an AI image op's go to the model as sent.
+    """
+    params: dict[str, Any]
+    """
+    That registry step's arguments.
+    """
+    prompt: str
+    """
+    AI steps: the prompt. {{subject.<name>}} expands to that subject's descriptor.
+    """
+
+
+class PresetUsage(TypedDict, total=False):
+    """
+    How often this preset has been run, over the jobs still on record — job records expire with the assets they produced, so this is the retention window and not all time. Read-only and derived.
+    """
+
+    lastRunAt: str
+    """
+    When the most recent of them was submitted.
+    """
+    runs: int
+    """
+    Jobs that ran this preset, at any version, within the retention window.
+    """
+
+
+class Error(TypedDict, total=False):
+    """
+    Why ingest failed — on FAILED only (imagestep#734)
+    """
+
+    code: Required[str]
+    """
+    An `ErrorCode` from the closed set, as in an API error
+    """
+    message: Required[str]
+    """
+    One sentence for a person; branch on `code`
+    """
+    param: str
+    """
+    The offending parameter, when one is to blame
+    """
+    retryable: Required[bool]
+    """
+    Whether sending the same thing again could succeed
+    """
+
+
+class PreviewUrl(TypedDict, total=False):
+    """
+    One asset's preview: a signed URL for its small rendition when it exists, plus enough state to know why it does not yet
+    """
+
+    error: Error
+    """
+    Why ingest failed — on FAILED only (imagestep#734)
+    """
+    expiresAt: int | None
+    """
+    When `url` stops working, epoch millis; absent when `url` is. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+    height: int | None
+    """
+    Pixel height, once known
+    """
+    id: Required[str]
+    """
+    Asset ID
+    """
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
+    """
+    Ingest state; a preview exists once this is DONE
+    """
+    url: str | None
+    """
+    Signed URL for the preview, a WebP at most 400 px wide; absent while ingest is still running or after it failed
+    """
+    width: int | None
+    """
+    Pixel width, once known
+    """
+
+
+class PreviewUrls(TypedDict, total=False):
+    """
+    Signed preview URLs for a page of assets
+    """
+
+    items: list[PreviewUrl]
+    """
+    One entry per asset of yours in the request, in request order; IDs that are not yours are simply absent
+    """
+    ttlSeconds: Required[int]
+    """
+    How long each `url` is valid from the moment it was signed
+    """
+
+
+class PreviewUrlsRequest(TypedDict, total=False):
+    """
+    Request object for signing preview URLs
+    """
+
+    ids: Required[list[str]]
+    """
+    Asset IDs to sign: at least one, at most 100; a repeated id is answered once
+    """
+
+
+RenameCollectionRequest = TypedDict(
+    'RenameCollectionRequest',
+    {
+        'from': Required[str],
+        'to': Required[str],
+    },
+    total=False,
+)
+
+
+class RenderRequest(TypedDict, total=False):
+    """
+    One template and one row of data
+    """
+
+    data: dict[str, Any]
+    """
+    The row: variable name → value. `{{ name }}` is filled HTML-escaped, `{{{ name }}}` raw, `a.b` reads nested data; a name the row does not carry renders as nothing.
+    """
+    templateId: Required[str]
+    """
+    Template id, your own slug, or either with `@version` to pin one version
+    """
+
+
+class StageUploadRequest(TypedDict, total=False):
+    """
+    Request object for staging file upload
+    """
+
+    fileName: str
+    """
+    Original file name; its extension must be an image type this service accepts, and decides the Content-Type the PUT is signed for
+    """
+    fileSize: Required[int]
+    """
+    Size of the file in bytes, at most 100 MB. Signed into the URL: the PUT must send exactly this Content-Length
+    """
+    sha1Hash: str
+    """
+    SHA-1 of the file, hex (optional): when it matches a DONE asset you already hold, the answer says so
+    """
+
+
+class StageUploadResponse(TypedDict, total=False):
+    """
+    Response object for staged upload containing pre-signed URL and duplicate detection info
+    """
+
+    contentType: str
+    """
+    The Content-Type this presigned URL is signed for (#48). The PUT MUST send exactly this value, and a Content-Length equal to the fileSize you declared — the signature covers both, so any other value is rejected by the object store. It is derived from your file name; you do not choose it.
+    """
+    error: str
+    """
+    Deprecated: `failure.message`, the same words; goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failure`, which has a `code` to branch on (imagestep#755)
+    """
+    existingAssetId: str
+    """
+    Id of the caller's existing asset with the same SHA1 (present only when exists=true)
+    """
+    exists: bool
+    """
+    True when the caller already has an asset with this SHA1. The objectId/url above are still a fresh, EMPTY upload slot: either PUT the bytes and finish-upload as usual, or skip both and use existingAssetId.
+    """
+    failure: ItemError
+    """
+    Why this file was not staged; when present, objectId and url are absent: skip the file. `code`: `unsupported_format` (no image extension this service accepts; `param: fileName`), `invalid_param` (`param: fileSize`, which is required) or `payload_too_large` (over the 100 MB limit; `param: fileSize`). None is retryable: the same file is refused the same way (imagestep#755)
+    """
+    objectId: str
+    """
+    The staged object's key — `<your account id>/<uuid>`. Opaque: send it back to finish-upload unchanged. Absent when `failure` is set
+    """
+    sha1Hash: str
+    """
+    The sha1Hash you sent, echoed so you can match the answer to your file
+    """
+    url: str
+    """
+    Pre-signed URL to PUT the bytes to, valid for 60 minutes. Absent when `failure` is set
+    """
+
+
+class Step(TypedDict, total=False):
+    """
+    Which segment of a chain produced the asset
+    """
+
+    count: Required[int]
+    """
+    How many segments the chain has
+    """
+    index: Required[int]
+    """
+    The segment, 0-based
+    """
+
+
+class StepEstimate(TypedDict, total=False):
+    """
+    One segment of a chain job's cost
+    """
+
+    bound: bool
+    """
+    True when this segment's model is priced by the size of the image it is sent: `costPerItem` is set at the largest image that model is ever sent (`maxInputEdge`), and it is what every item is charged, whatever the size of its own image. Absent means the price does not depend on the image.
+    """
+    costPerItem: Required[int]
+    """
+    Credits one item costs on this segment; 0 for a process segment
+    """
+    index: Required[int]
+    """
+    Segment index, 0-based
+    """
+    maxInputEdge: int
+    """
+    The longest edge, in pixels, of the image this segment's model is handed; absent for a process segment
+    """
+    model: str
+    """
+    The model this segment would call; absent for a process segment
+    """
+    op: str
+    """
+    What the segment runs: `process` for a pipeline pass, else the AI op's name
+    """
+
+
+class StepWarning(TypedDict, total=False):
+    """
+    An advisory finding about a list of steps: legal, and probably not what was meant
+    """
+
+    code: str
+    """
+    Machine-readable finding code from a closed set; the table is /docs/presets#warnings
+    """
+    message: str
+    """
+    The finding in one sentence, naming the steps by index
+    """
+    steps: list[int]
+    """
+    The step indexes the finding is about, in order — the redundant one first
+    """
+
+
+class Subject(TypedDict, total=False):
+    """
+    A recurring character, product or location: reference images plus the locked words for it.
+    """
+
+    descriptor: str
+    """
+    The locked description — colour, material, markings — at most 300 characters. Text pins what an image cannot show.
+    """
+    name: str
+    """
+    Lowercase handle (`[a-z0-9][a-z0-9_-]{0,39}`, unique among the subjects), referenced in a prompt as {{subject.<name>}}.
+    """
+    referenceAssetIds: list[str]
+    """
+    Your own DONE asset ids showing this subject. They pin the geometry.
+    """
+
+
+class SyncReferenceInput(TypedDict, total=False):
+    """
+    The JSON form of a synchronous call: a reference to the image instead of its bytes. Give `assetId` or `url`. On `/images/transform` the op, preset and parameters may ride here too; a query parameter of the same name wins.
+    """
+
+    assetId: str
+    """
+    One of your assets, read by this service (its browser-readable rendition when it has one)
+    """
+    op: str
+    """
+    Transform only: the op, as `?op=`
+    """
+    parameters: dict[str, Any]
+    """
+    Transform with `op` only: the op's parameters. A key also in the query string takes the query's value.
+    """
+    preset: str
+    """
+    Transform only: the preset, as `?preset=`
+    """
+    url: str
+    """
+    An image on the internet, fetched by this service: `http(s)` only, never a private or loopback address, redirects not followed. Its format is the type it was served as, else the one its extension names
+    """
+
+
+class SyncUrlResult(TypedDict, total=False):
+    """
+    A transformed image as a signed link instead of the bytes
+    """
+
+    bytes: Required[int]
+    """
+    The result's size in bytes
+    """
+    contentType: Required[str]
+    """
+    The result's type, e.g. image/webp
+    """
+    expiresInSeconds: Required[int]
+    """
+    How long the link works, in seconds
+    """
+    height: int
+    """
+    The result's pixel height, when the worker reported it
+    """
+    url: Required[str]
+    """
+    Where to fetch the result; signed, valid for `expiresInSeconds`
+    """
+    width: int
+    """
+    The result's pixel width, when the worker reported it
+    """
+
+
+class TemplateData(TypedDict, total=False):
+    """
+    HTML/CSS render template with {{ var }} placeholders; the input of the render_template op
+    """
+
+    builtIn: bool
+    """
+    Whether this is a built-in template (read-only; PUT and DELETE are 403)
     """
     createdAt: str
-    errorCode: str
-    errorMessage: str
-    expiresAt: str
-    failedItems: int
+    """
+    When the template — or, read as `id@version`, that version — was created
+    """
+    css: str
+    """
+    Stylesheet (≤ 128 KB as UTF-8). Like the html, it loads nothing but `data:` URIs and this product's own asset host; any other `@import` or `url()` is blocked at render time.
+    """
+    description: str
+    """
+    Free text for people; not rendered. `""` on a PUT empties it.
+    """
+    height: int
+    """
+    Viewport / output height in px (required on create; 1–4096)
+    """
+    html: str
+    """
+    Body HTML (required on create; ≤ 256 KB as UTF-8). Scripts never run; every request it makes is blocked at render time except `data:` URIs and this product's own asset host.
+    """
     id: str
-    model: str
-    op: str
-    parentJobId: str
-    presetId: str
-    presetName: str
-    presetVersion: int
-    retryable: bool
-    rootJobId: str
-    settledItems: int
-    status: Literal[
-        'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
+    """
+    Template id (`tpl_…`; a built-in's is `builtin-template-…`). A version read by `id@version` carries that spelling here.
+    """
+    name: str
+    """
+    Display name (required on create; at most 200 characters)
+    """
+    slug: str
+    """
+    URL-safe handle, unique per account: lowercase letters, digits and hyphens. Generated from the name when omitted; one you send must be free. `builtin-` is reserved.
+    """
+    updatedAt: str
+    """
+    When the current version was saved; absent on a version read as `id@version`
+    """
+    variables: list[str]
+    """
+    Placeholder names (at most 100, each letters, digits, `_` and `.`). Derived from the html/css when omitted. A render fills `{{ name }}` HTML-escaped and `{{{ name }}}` raw; a name the row does not carry renders as nothing.
+    """
+    version: int
+    """
+    Current version; every PUT increments it and keeps the old one readable as `id@version`
+    """
+    width: int
+    """
+    Viewport / output width in px (required on create; 1–4096)
+    """
+
+
+class TemplateSummary(TypedDict, total=False):
+    """
+    A template as it is listed: everything but its html and css, which GET /api/v1/templates/{id} returns
+    """
+
+    builtIn: bool
+    """
+    Whether this is a built-in template (read-only)
+    """
+    createdAt: str
+    """
+    When the template was created
+    """
+    description: str
+    """
+    Free text for people
+    """
+    height: int
+    """
+    Output height in px
+    """
+    id: Required[str]
+    """
+    Template id (`tpl_…`, or `builtin-template-…`); `id@version` addresses one frozen version
+    """
+    name: str
+    """
+    Display name
+    """
+    slug: str
+    """
+    URL-safe slug
+    """
+    updatedAt: str
+    """
+    When its current version was saved — the order your own rows are listed in
+    """
+    variables: list[str]
+    """
+    Placeholder names a render fills in
+    """
+    version: int
+    """
+    Current version
+    """
+    width: int
+    """
+    Output width in px
+    """
+
+
+class UploadedAsset(TypedDict, total=False):
+    """
+    The asset one upload created, or the one the account already held for the same bytes
+    """
+
+    existing: Required[bool]
+    """
+    true when the account already had a DONE asset with the same SHA-1 — that asset is returned and nothing new is stored
+    """
+    id: Required[str]
+    """
+    Asset id
+    """
+    name: str
+    """
+    Asset name (the file name without its extension)
+    """
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
+    """
+    PROCESSING for a new asset; DONE when `existing` is true
+    """
+
+
+Usage = TypedDict(
+    'Usage',
+    {
+        'from': str,
+        'groupBy': Literal['op', 'key', 'day'],
+        'groups': list[Bucket],
+        'to': str,
+        'total': Bucket,
+    },
+    total=False,
+)
+
+
+class WebhookDeliverySummary(TypedDict, total=False):
+    """
+    One webhook delivery attempt: did it arrive, after how many tries, and what did the receiver say
+    """
+
+    attempts: Required[int]
+    """
+    How many HTTP attempts have been made
+    """
+    createdAt: str
+    """
+    When the event was queued; retries stop 24 hours after it
+    """
+    deliveredAt: str
+    """
+    When a 2xx came back
+    """
+    error: str
+    """
+    Why the last attempt failed, when it did: `HTTP 503`, a connection error, `target refused: …` when the host resolved to a non-public address (no request was sent), or `endpoint disabled`
+    """
+    eventId: str
+    """
+    The event this delivered; the same id is in the body's `id` and on every retry
+    """
+    eventType: Literal[
+        'job.completed', 'job.failed', 'job.item.completed', 'job.item.failed'
     ]
-    stepCount: int
-    submittedAt: str
-    submittedItems: int
-    templateId: str
-    templateName: str
-    templateVersion: int
-    totalItems: int
-    type: Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    """
+    The event's type
+    """
+    id: Required[str]
+    """
+    The delivery's id, `whd_…`
+    """
+    nextAttemptAt: str
+    """
+    When the next retry is due, while status is PENDING
+    """
+    responseStatus: int
+    """
+    The last attempt's HTTP status, or null when the request never got one (DNS, timeout, TLS)
+    """
+    status: Literal['PENDING', 'DELIVERED', 'FAILED']
+    """
+    PENDING while retries remain, DELIVERED once a 2xx came back, FAILED when it gave up — 24 hours after the event was queued, after a test's single attempt, or when the endpoint was disabled or deleted with the event still queued
+    """
 
 
-class ApiResponseListJobItem(TypedDict, total=False):
+class WebhookEndpoint(TypedDict, total=False):
+    """
+    A URL this account receives job events at. The signing secret is masked on every read but the create and rotate-secret answers.
+    """
+
+    consecutiveFailures: Required[int]
+    """
+    Events in a row whose delivery ran out of retries since the last accepted one. At 5 the endpoint is disabled; any `2xx` resets it to 0.
+    """
+    createdAt: str
+    description: str
+    """
+    Your label for it
+    """
+    disabledAt: str
+    """
+    When the service switched the endpoint off because 5 events in a row ran out of retries; absent otherwise. `PUT` with `enabled: true` clears it.
+    """
+    disabledReason: str
+    """
+    Why it was switched off: the count and the last delivery error
+    """
+    enabled: Required[bool]
+    """
+    Whether events are delivered. `false` when you paused it, or when the service disabled it (then `disabledAt` is set).
+    """
+    events: list[
+        Literal['job.completed', 'job.failed', 'job.item.completed', 'job.item.failed']
+    ]
+    """
+    The subscription as you set it. Absent or empty means every job-level event; per-item events are delivered only when listed here.
+    """
+    id: Required[str]
+    """
+    The endpoint's id, `whe_…`
+    """
+    secret: str
+    """
+    The signing secret in the clear, `whsec_…` — present only on the create and rotate-secret answers, so store it then. Every other read carries `secretHint` instead.
+    """
+    secretHint: str
+    """
+    The secret masked — its first 7 and last 4 characters — enough to tell which one your receiver holds, not enough to sign with
+    """
+    updatedAt: str
+    url: str
+    """
+    Where events are POSTed
+    """
+
+
+class WebhookTestData(TypedDict, total=False):
+    """
+    `webhook.test`'s data: a sentence saying the delivery is a test
+    """
+
+    message: Required[str]
+    """
+    Says the delivery is a test and nothing happened to the account
+    """
+
+
+class WebhookTestEvent(TypedDict, total=False):
+    """
+    The synthetic event `POST /webhook-endpoints/{id}/test` sends
+    """
+
+    apiVersion: Required[Literal['v1']]
+    """
+    The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
+    """
+    createdAt: Required[str]
+    """
+    When the event was queued — not when this attempt was sent
+    """
+    data: Required[WebhookTestData]
+    id: Required[str]
+    """
+    The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat
+    """
+    type: Required[Literal['webhook.test']]
+    """
+    What happened; it decides the shape of `data`
+    """
+
+
+class ApiResponseBatchDeleteResultDTO(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[JobItem]
+    data: Required[BatchDeleteResultDTO]
     """
     The response data payload
     """
@@ -1523,7 +1653,7 @@ class ApiResponseListJobItem(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -1533,24 +1663,127 @@ class ApiResponseListJobItem(TypedDict, total=False):
     """
 
 
-class JobCount(TypedDict, total=False):
+class ApiResponseCollectionRenamed(TypedDict, total=False):
     """
-    How many of your jobs are in one status and of one type. Only non-zero cells are listed.
+    Standard API response wrapper containing status, message, data and timestamp
     """
 
-    count: int
+    data: Required[CollectionRenamed]
     """
-    Jobs in this status and of this type, under the request's filters
+    The response data payload
     """
-    status: Literal[
-        'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
-    ]
+    error: ApiError
     """
-    The cell's status
+    Structured error; present exactly when the request failed
     """
-    type: Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    message: str
     """
-    The cell's job type
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseFeedback(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[Feedback]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseImageMetadata(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[ImageMetadata]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListCollectionSummary(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[CollectionSummary]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
     """
 
 
@@ -1559,7 +1792,7 @@ class ApiResponseListFeedback(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[Feedback]
+    data: Required[list[Feedback]]
     """
     The response data payload
     """
@@ -1575,215 +1808,22 @@ class ApiResponseListFeedback(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class AssetSummary(TypedDict, total=False):
-    """
-    One asset as a list row. GET /api/v1/assets/{id} has the rest: image facts, metadata, lineage.
-    """
-
-    collection: str
-    """
-    The collection it is in, if any
-    """
-    createdAt: int
-    """
-    Epoch millis; the list is ordered by it, newest first
-    """
-    error: AssetError
-    """
-    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
-    """
-    expiresAt: int
-    """
-    Epoch millis when the asset and its objects are deleted
-    """
-    height: int
-    """
-    image.height, once ingest measured it; absent before
-    """
-    id: str
-    """
-    Asset ID
-    """
-    mimeType: str
-    """
-    image.mimeType
-    """
-    name: str
-    """
-    Display name — an upload's file name without its extension, cut to 200 characters
-    """
-    publicUrl: str
-    """
-    The CDN URL once published
-    """
-    published: bool
-    """
-    Whether it is on the public CDN; `publicUrl` is there when it is
-    """
-    size: int
-    """
-    image.size: the stored bytes
-    """
-    source: Literal['upload', 'process', 'ai-generate', 'ai-edit', 'render']
-    """
-    Where it came from
-    """
-    status: Literal['PROCESSING', 'DONE', 'FAILED']
-    """
-    PROCESSING until ingest measured it, then DONE or FAILED
-    """
-    tags: list[str]
-    """
-    Your tags; [] when there are none
-    """
-    width: int
-    """
-    image.width, once ingest measured it; absent before
-    """
-
-
-class CollectionSummary(TypedDict, total=False):
-    """
-    One collection: its name, how many of your assets are in it, and when the latest was added
-    """
-
-    collection: str
-    """
-    The name, as GET /api/v1/assets?collection= takes it
-    """
-    count: int
-    """
-    Assets in it — the total GET /api/v1/assets?collection= reports
-    """
-    lastCreatedAt: int
-    """
-    Epoch millis the newest asset in it was created; the list is ordered by it, newest first
-    """
-
-
-class ModelDTO(TypedDict, total=False):
-    """
-    A model an AI op can run on, with its price and what it accepts
-    """
-
-    categories: list[str]
-    """
-    What the model is sold for. It runs an op when this includes the op's `modelCategory` (GET /api/v1/ops)
-    """
-    completion_price: str
-    """
-    Price per 1M output tokens in USD
-    """
-    context_length: int
-    """
-    Maximum context window supported by the model (tokens)
-    """
-    created: int
-    """
-    Unix timestamp when the model metadata was last updated
-    """
-    description: str
-    """
-    Short description of the model's capabilities
-    """
-    id: str
-    """
-    The model's id — what `model` names on a job or a preset step
-    """
-    image_price_range: str
-    """
-    Our price per image in USD — the provider's list price plus our markup — as one figure, or min - max across sizes, qualities or scale factors
-    """
-    image_required: bool
-    """
-    Whether an input image is required (true), optional (false), or not supported (null)
-    """
-    input_modalities: list[str]
-    """
-    Input modalities supported by the model
-    """
-    max_input_edge: int
-    """
-    The longest edge, in pixels, of an input image this model is handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata before the provider sees it. For a model billed per megapixel it is also what the quoted price assumes. Absent for a model that takes no image.
-    """
-    max_input_images: int
-    """
-    Maximum number of input images accepted. null = no image input, 1 = single image, >1 = multi-image
-    """
-    mode: str
-    """
-    Model mode: ai_image, or analyze for the models the analyze op sells
-    """
-    name: str
-    """
-    Human readable model name
-    """
-    output_modalities: list[str]
-    """
-    Output modalities supported by the model
-    """
-    parameters: Any
-    """
-    The parameters the model takes in a job's `parameters`: a list of `{key, label, type, defaultValue}`, with `options` or `min` / `max` where the value is bounded
-    """
-    prompt_price: str
-    """
-    Price per 1M input tokens in USD
-    """
-    provider_price: str
-    """
-    The provider's list price per image in USD, before our markup — the cheapest end when the price has a range. Every model carries one, so our multiple of it can be checked.
-    """
-    provider_price_range: str
-    """
-    The provider's list price range in USD across the same span as image_price_range. Present only for models whose provider price depends on a parameter.
-    """
-    series: str
-    """
-    Provider family derived from the model id prefix
-    """
-    support_structured_output: bool
-    """
-    Whether the model supports JSON schema structured output
-    """
-    supported_parameters: Any
-    """
-    Supported optional parameters and their constraints (may be object or array)
-    """
-
-
-class ErrorResponse(TypedDict, total=False):
-    """
-    The answer to every failed request: `error` says what went wrong and whether to retry, and nothing else rides beside it — no `data`, no `meta`.
-    """
-
-    error: Required[ApiError]
     success: Required[bool]
     """
-    Always `false` on a failure
+    Indicates if the request was successful
     """
     timestamp: str
     """
-    When the response was generated
+    Timestamp when the response was generated
     """
 
 
-class ApiResponseWebhookEndpoint(TypedDict, total=False):
+class ApiResponseListFinishedUpload(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: WebhookEndpoint
+    data: Required[list[FinishedUpload]]
     """
     The response data payload
     """
@@ -1799,7 +1839,7 @@ class ApiResponseWebhookEndpoint(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -1809,35 +1849,12 @@ class ApiResponseWebhookEndpoint(TypedDict, total=False):
     """
 
 
-class PresetVersion(TypedDict, total=False):
-    """
-    A superseded version of a preset: its steps and subjects as they were, and when that version was saved.
-    """
-
-    steps: list[PresetStep]
-    """
-    The steps as that version had them.
-    """
-    subjects: list[Subject]
-    """
-    The subjects as that version had them.
-    """
-    updatedAt: str
-    """
-    When that version was saved.
-    """
-    version: int
-    """
-    The version number; `slug@version` runs and reads exactly this.
-    """
-
-
-class ApiResponseWebhookDeliverySummary(TypedDict, total=False):
+class ApiResponseListJobCount(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: WebhookDeliverySummary
+    data: Required[list[JobCount]]
     """
     The response data payload
     """
@@ -1853,7 +1870,7 @@ class ApiResponseWebhookDeliverySummary(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -1863,12 +1880,12 @@ class ApiResponseWebhookDeliverySummary(TypedDict, total=False):
     """
 
 
-class ApiResponseBatchImportResultDTOTemplateData(TypedDict, total=False):
+class ApiResponseListJobItem(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: BatchImportResultDTOTemplateData
+    data: Required[list[JobItem]]
     """
     The response data payload
     """
@@ -1884,7 +1901,7 @@ class ApiResponseBatchImportResultDTOTemplateData(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -1894,281 +1911,12 @@ class ApiResponseBatchImportResultDTOTemplateData(TypedDict, total=False):
     """
 
 
-class PipelineData(TypedDict, total=False):
-    """
-    An inline processing pipeline: a name and the registry steps a process job runs.
-    """
-
-    name: str
-    pipeline: list[PipelineStep]
-
-
-class JobEstimate(TypedDict, total=False):
-    """
-    Cost estimate for a job that has not been created
-    """
-
-    assetCountLeft: int
-    """
-    How many more assets the account can hold: the plan's stored-asset ceiling minus the assets it stores now (a chain's intermediates and failed uploads do not count). Deleting assets frees room; below zero after a downgrade. More items than this and a submit is 422 asset_count_exceeded.
-    """
-    costPerItem: int
-    """
-    Credits per item (1 credit = $0.0001)
-    """
-    creditBalance: int
-    """
-    The account's credit balance right now
-    """
-    estimatedCredits: int
-    """
-    totalItems × costPerItem
-    """
-    maxInputEdge: int
-    """
-    The longest edge, in pixels, of the image the model will be handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata first. AI jobs that send an image only; a chain states it per step.
-    """
-    model: str
-    """
-    Model that would run
-    """
-    overageCredits: int
-    """
-    What `overageRuns` cost, in credits — already in `estimatedCredits`. Absent for AI jobs.
-    """
-    overageRuns: int
-    """
-    Of this job's deterministic runs, how many fall past the plan's allowance and are paid from your balance instead of refused. 0 when they all fit; absent for AI jobs.
-    """
-    presetId: str
-    """
-    Preset the request resolved to, when it named one
-    """
-    presetName: str
-    """
-    Preset name; `op:<name>` for an op with no preset, 'Ad-hoc' for a bare type + model
-    """
-    presetVersion: int
-    """
-    The version of that preset the job would run — the one `slug@version` pinned, or the current one
-    """
-    processCountLeft: int
-    """
-    Deterministic-op quota left this period (process / render items), never below zero; -1 when the plan sets no ceiling. Runs your running jobs have claimed are already taken out. Runs past it are paid from your balance — `overageRuns` · `overageCredits`. Absent for AI jobs, which are priced in credits.
-    """
-    processPerItem: int
-    """
-    `chain` only: how many process passes each item runs — one per deterministic segment. `totalItems × processPerItem` is what the job takes out of the period's deterministic-op quota. Every other type runs one pass per item.
-    """
-    prompt: str
-    """
-    The prompt the model would receive, with every {{subject.<name>}} already expanded to that subject's locked descriptor. Check it here rather than discovering a mis-typed placeholder in the pictures. AI jobs only.
-    """
-    steps: list[StepEstimate]
-    """
-    `chain` only: what each segment costs, in order, so the total can be added up rather than trusted. Their `costPerItem` sums to the job's.
-    """
-    sufficientCredit: bool
-    """
-    Whether a submit would be admitted: the balance, plus the one top-up an enabled auto top-up may overdraw, less what your running jobs already hold, covers the estimate. False does NOT mean the request is invalid — it means submitting it now would return insufficient_credit.
-    """
-    templateId: str
-    """
-    `render` only: the template the call named, by id
-    """
-    templateName: str
-    """
-    `render` only: that template's name
-    """
-    templateVersion: int
-    """
-    `render` only: the version of the template the job would render — the one `id@version` pinned, or the current one
-    """
-    totalItems: int
-    """
-    Number of items the job would have
-    """
-    type: str
-    """
-    Job type the request resolves to
-    """
-    warnings: list[StepWarning]
-    """
-    What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. Present when the request named a preset or sent inline steps.
-    """
-
-
-class Job(TypedDict, total=False):
-    actualCredits: int
-    """
-    Credits charged: set when the job settles, for the work that completed; 0 until then, and for deterministic work, which spends none
-    """
-    apiKeyId: str
-    attemptNumber: int
-    """
-    1 for a fresh job, one more for each resume
-    """
-    cancelledItems: int
-    """
-    Items cancelled before they ran
-    """
-    collection: str
-    """
-    The collection the outputs go in, as the request named it; absent when it named none (an output made from an asset then lands in that asset's collection)
-    """
-    completedAt: str
-    """
-    When it reached a terminal status
-    """
-    completedItems: int
-    """
-    Items that completed
-    """
-    costPerItem: int
-    createdAt: str
-    """
-    When it was submitted
-    """
-    errorCode: str
-    """
-    The verdict on the failed items, from the closed set of error codes: a retryable item's code when any is retryable, else the first failed item's. Absent when nothing failed, or no failure was classified
-    """
-    errorMessage: str
-    """
-    On a job with failed items, one line for a person ("2 of 3 items failed"); each item carries its own `error`
-    """
-    expiresAt: str
-    """
-    When the record is swept — the plan's retention window at submit, the same as the assets it made. Never shortened by a downgrade
-    """
-    failedItems: int
-    """
-    Items that failed — each says why, and whether a resume could help
-    """
-    id: str
-    """
-    The job's id, `job_…`
-    """
-    items: list[JobItem]
-    """
-    The items, in order: the first 100 of them. `itemsTruncated` says when there are more — GET /api/v1/jobs/{id}/items pages the rest
-    """
-    itemsTruncated: bool
-    """
-    True when `items` is only the first page of them; absent otherwise
-    """
-    lastItemSettledAt: str
-    model: str
-    """
-    The model the job calls; absent for deterministic work, and on a chain, whose segments name their own
-    """
-    op: str
-    """
-    The op it was submitted as, when it was submitted as one — what usage groups by
-    """
-    parameters: dict[str, Any]
-    """
-    What the job runs with: an AI op's model parameters, `analyze`'s `schema` and `maxOutputTokens`, or a render's data rows under `items`
-    """
-    parentJobId: str
-    """
-    The attempt this one resumed; absent on a first attempt
-    """
-    pipelines: list[JobPipeline]
-    """
-    A deterministic job's pipeline as stored at submit — one per variant, named after it — with each layer named by the asset id you gave
-    """
-    presetId: str
-    """
-    The preset it ran, by id; absent for an op, inline steps or a render
-    """
-    presetName: str
-    """
-    The preset's name; `op:<name>` for an op, `Ad-hoc` for a bare type and model; absent for a render
-    """
-    presetVersion: int
-    """
-    The version of the preset it ran — a later edit of the preset never changes it
-    """
-    prompt: str
-    """
-    The prompt the model receives, every `{{subject.<name>}}` already expanded
-    """
-    references: list[str]
-    """
-    The reference images sent with every model call — the subjects' images, resolved at submit
-    """
-    retryable: bool
-    """
-    Whether a resume could help: true when at least one failed item failed for a reason that may pass. Absent with `errorCode`
-    """
-    rootJobId: str
-    """
-    The first attempt's id — the job's own on a first attempt, and the same on every resume of it, so `GET /api/v1/jobs?rootJobId=` lists every attempt
-    """
-    segments: list[JobSegment]
-    """
-    `chain` only: the segments each item walks, in order, frozen at submit with what each costs per item
-    """
-    settledItems: int
-    """
-    Items that reached an end — completed, failed or cancelled
-    """
-    status: Literal[
-        'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
-    ]
-    """
-    `PENDING` waits for a slot (an account runs a few jobs of one type at a time; the rest queue), `PROCESSING` is running and `CANCELLING` is a cancel waiting for items already running. Then one of the terminal three: `COMPLETED` (no item failed), `FAILED` (at least one did — read the items) or `CANCELLED`.
-    """
-    stepCount: int
-    """
-    How many inline `steps` the job ran; absent for an op or a preset job
-    """
-    steps: list[PresetStep]
-    """
-    The inline `steps` it was submitted with, as written; absent for an op or a preset job
-    """
-    subjects: list[Subject]
-    """
-    The subjects sent with inline `steps`, as checked
-    """
-    submittedAt: str
-    """
-    When it left the queue and started running
-    """
-    submittedItems: int
-    """
-    Items handed to a provider or worker so far
-    """
-    templateId: str
-    """
-    `render` only: the template, by id
-    """
-    templateName: str
-    """
-    `render` only: the template's name
-    """
-    templateVersion: int
-    """
-    `render` only: the version of the template it rendered
-    """
-    totalItems: int
-    """
-    How many items the job has — one per asset (times the variants), per image to generate, or per render row
-    """
-    type: Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
-    """
-    What the job runs as — decided by the op, preset or steps it was submitted with
-    """
-    userId: str
-
-
-class ApiResponseFeedback(TypedDict, total=False):
+class ApiResponseListJobSummary(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: Feedback
+    data: Required[list[JobSummary]]
     """
     The response data payload
     """
@@ -2184,7 +1932,255 @@ class ApiResponseFeedback(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListStageUploadResponse(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[StageUploadResponse]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListTemplateData(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[TemplateData]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListTemplateSummary(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[TemplateSummary]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListWebhookDeliverySummary(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[WebhookDeliverySummary]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListWebhookEndpoint(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[WebhookEndpoint]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponsePreviewUrls(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[PreviewUrls]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseSyncUrlResult(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[SyncUrlResult]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseTemplateData(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[TemplateData]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2199,7 +2195,7 @@ class ApiResponseUploadedAsset(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: UploadedAsset
+    data: Required[UploadedAsset]
     """
     The response data payload
     """
@@ -2215,7 +2211,100 @@ class ApiResponseUploadedAsset(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseUsage(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[Usage]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseWebhookDeliverySummary(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[WebhookDeliverySummary]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseWebhookEndpoint(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[WebhookEndpoint]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2280,96 +2369,131 @@ class AssetLineage(TypedDict, total=False):
     """
 
 
-class ApiResponseAssetStatuses(TypedDict, total=False):
+class AssetStatus(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    One asset's ingest state
     """
 
-    data: AssetStatuses
+    error: ItemError
     """
-    The response data payload
+    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
     """
-    error: ApiError
+    height: int
     """
-    Structured error; present exactly when the request failed
+    Pixel height, once ingest has measured it
     """
-    message: str
+    id: Required[str]
     """
-    Human-readable message about the response
+    Asset ID
     """
-    meta: PageMeta
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
     """
-    Pagination metadata for list responses
+    PROCESSING while ingest runs; DONE and FAILED are final
     """
-    success: bool
+    width: int
     """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
+    Pixel width, once ingest has measured it
     """
 
 
-class ApiResponseListStageUploadResponse(TypedDict, total=False):
+class AssetStatuses(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    Ingest states for a batch of assets
     """
 
-    data: list[StageUploadResponse]
+    items: list[AssetStatus]
     """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
+    One entry per asset of yours in the request, in request order; IDs that are not yours are simply absent
     """
 
 
-class ApiResponsePreviewUrls(TypedDict, total=False):
+class AssetSummary(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    One asset as a list row. GET /api/v1/assets/{id} has the rest: image facts, metadata, lineage.
     """
 
-    data: PreviewUrls
+    collection: str
     """
-    The response data payload
+    The collection it is in, if any
     """
-    error: ApiError
+    createdAt: int
     """
-    Structured error; present exactly when the request failed
+    Epoch millis; the list is ordered by it, newest first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
     """
-    message: str
+    error: ItemError
     """
-    Human-readable message about the response
+    Why ingest failed — on FAILED only (imagestep#734); `retryable` says whether uploading the file again could succeed
     """
-    meta: PageMeta
+    expiresAt: int
     """
-    Pagination metadata for list responses
+    Epoch millis when the asset and its objects are deleted. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
     """
-    success: bool
+    height: int
     """
-    Indicates if the request was successful
+    image.height, once ingest measured it; absent before
     """
-    timestamp: str
+    id: Required[str]
     """
-    Timestamp when the response was generated
+    Asset ID
+    """
+    mimeType: str
+    """
+    image.mimeType
+    """
+    name: str
+    """
+    Display name — an upload's file name without its extension, cut to 200 characters
+    """
+    publicUrl: str
+    """
+    The CDN URL once published
+    """
+    published: Required[bool]
+    """
+    Whether it is on the public CDN; `publicUrl` is there when it is
+    """
+    size: int
+    """
+    image.size: the stored bytes
+    """
+    source: Literal['upload', 'process', 'ai-generate', 'ai-edit', 'render']
+    """
+    Where it came from
+    """
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
+    """
+    PROCESSING until ingest measured it, then DONE or FAILED
+    """
+    tags: list[str]
+    """
+    Your tags; [] when there are none
+    """
+    width: int
+    """
+    image.width, once ingest measured it; absent before
+    """
+
+
+class BatchImportResultDTOTemplateData(TypedDict, total=False):
+    """
+    What an import did: the entries that landed, and one failure for each that did not
+    """
+
+    data: list[TemplateData]
+    """
+    The created resources, as saved, in the order sent
+    """
+    errors: list[str]
+    """
+    Deprecated: the same refusals as `failures`, one English line each (`Preset at index 2 'Hero': …`); goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failures`, which has the index and a `code` to branch on (imagestep#755). Absent when every entry landed.
+    """
+    failures: list[ImportFailure]
+    """
+    One per refused entry, in the order sent: its `index` in what you sent, and why — the fields of an `ItemError` (imagestep#755). Absent when every entry landed.
+    """
+    importedCount: Required[int]
+    """
+    How many entries were created — the length of `data`
     """
 
 
@@ -2380,7 +2504,7 @@ class FromUrlResult(TypedDict, total=False):
 
     error: ItemError
     """
-    Why this URL did not become an asset; absent when it did
+    Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable)
     """
     existing: bool
     """
@@ -2394,168 +2518,353 @@ class FromUrlResult(TypedDict, total=False):
     """
     The asset's name: for a new one, the URL's last path segment without its extension, or `image`; absent when `error` is set
     """
-    status: str
+    status: Literal['PROCESSING', 'DONE', 'FAILED']
     """
     PROCESSING for a new asset, until ingest has measured it; DONE for one you already held. Absent when `error` is set
     """
-    url: str
+    url: Required[str]
     """
     The URL as you sent it
     """
 
 
-class ApiResponseListFinishedUpload(TypedDict, total=False):
+class JobEstimate(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[FinishedUpload]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
+    Cost estimate for a job that has not been created
     """
 
-
-class ApiResponseBatchDeleteResultDTO(TypedDict, total=False):
+    assetCountLeft: Required[int]
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    How many more assets the account can hold: the plan's stored-asset ceiling minus the assets it stores now (a chain's intermediates and failed uploads do not count). Deleting assets frees room; below zero after a downgrade. More items than this and a submit is 422 asset_count_exceeded.
     """
-
-    data: BatchDeleteResultDTO
+    costPerItem: Required[int]
     """
-    The response data payload
+    Credits per item (1 credit = $0.0001)
     """
-    error: ApiError
+    creditBalance: Required[int]
     """
-    Structured error; present exactly when the request failed
+    The account's credit balance right now
     """
-    message: str
+    estimatedCredits: Required[int]
     """
-    Human-readable message about the response
+    totalItems × costPerItem
     """
-    meta: PageMeta
+    maxInputEdge: int
     """
-    Pagination metadata for list responses
+    The longest edge, in pixels, of the image the model will be handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata first. AI jobs that send an image only; a chain states it per step.
     """
-    success: bool
+    model: str
     """
-    Indicates if the request was successful
+    Model that would run
     """
-    timestamp: str
+    overageCredits: int
     """
-    Timestamp when the response was generated
+    What `overageRuns` cost, in credits — already in `estimatedCredits`. Absent for AI jobs.
     """
-
-
-class ApiResponseCollectionRenamed(TypedDict, total=False):
+    overageRuns: int
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    Of this job's deterministic runs, how many fall past the plan's allowance and are paid from your balance instead of refused. 0 when they all fit; absent for AI jobs.
     """
-
-    data: CollectionRenamed
+    presetId: str
     """
-    The response data payload
+    Preset the request resolved to, when it named one
     """
-    error: ApiError
+    presetName: str
     """
-    Structured error; present exactly when the request failed
+    Preset name; `op:<name>` for an op with no preset, 'Ad-hoc' for a bare type + model
     """
-    message: str
+    presetVersion: int
     """
-    Human-readable message about the response
+    The version of that preset the job would run — the one `slug@version` pinned, or the current one
     """
-    meta: PageMeta
+    processCountLeft: int
     """
-    Pagination metadata for list responses
+    Deterministic-op quota left this period (process / render items), never below zero; -1 when the plan sets no ceiling. Runs your running jobs have claimed are already taken out. Runs past it are paid from your balance — `overageRuns` · `overageCredits`. Absent for AI jobs, which are priced in credits.
     """
-    success: bool
+    processPerItem: int
     """
-    Indicates if the request was successful
+    `chain` only: how many process passes each item runs — one per deterministic segment. `totalItems × processPerItem` is what the job takes out of the period's deterministic-op quota. Every other type runs one pass per item.
     """
-    timestamp: str
+    prompt: str
     """
-    Timestamp when the response was generated
+    The prompt the model would receive, with every {{subject.<name>}} already expanded to that subject's locked descriptor. Check it here rather than discovering a mis-typed placeholder in the pictures. AI jobs only.
     """
-
-
-class ApiResponseUsage(TypedDict, total=False):
+    steps: list[StepEstimate]
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    `chain` only: what each segment costs, in order, so the total can be added up rather than trusted. Their `costPerItem` sums to the job's.
     """
-
-    data: Usage
+    sufficientCredit: Required[bool]
     """
-    The response data payload
+    Whether a submit would be admitted: the balance, plus the one top-up an enabled auto top-up may overdraw, less what your running jobs already hold, covers the estimate. False does NOT mean the request is invalid — it means submitting it now would return insufficient_credit.
     """
-    error: ApiError
+    templateId: str
     """
-    Structured error; present exactly when the request failed
+    `render` only: the template the call named, by id
     """
-    message: str
+    templateName: str
     """
-    Human-readable message about the response
+    `render` only: that template's name
     """
-    meta: PageMeta
+    templateVersion: int
     """
-    Pagination metadata for list responses
+    `render` only: the version of the template the job would render — the one `id@version` pinned, or the current one
     """
-    success: bool
+    totalItems: Required[int]
     """
-    Indicates if the request was successful
+    Number of items the job would have
     """
-    timestamp: str
+    type: Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
     """
-    Timestamp when the response was generated
+    Job type the request resolves to
+    """
+    warnings: list[StepWarning]
+    """
+    What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. Present when the request named a preset or sent inline steps.
     """
 
 
-class ApiResponseListTemplateSummary(TypedDict, total=False):
+class JobEvent(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    A job settled: `job.completed` when no item failed, `job.failed` otherwise (a cancel included)
     """
 
-    data: list[TemplateSummary]
+    apiVersion: Required[Literal['v1']]
     """
-    The response data payload
+    The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
     """
-    error: ApiError
+    createdAt: Required[str]
     """
-    Structured error; present exactly when the request failed
+    When the event was queued — not when this attempt was sent
     """
-    message: str
+    data: Required[JobEventData]
+    id: Required[str]
     """
-    Human-readable message about the response
+    The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat
     """
-    meta: PageMeta
+    type: Required[Literal['job.completed', 'job.failed']]
     """
-    Pagination metadata for list responses
+    What happened; it decides the shape of `data`
     """
-    success: bool
+
+
+class JobItemEvent(TypedDict, total=False):
     """
-    Indicates if the request was successful
+    One item settled — only to endpoints that subscribed to item events
     """
-    timestamp: str
+
+    apiVersion: Required[Literal['v1']]
     """
-    Timestamp when the response was generated
+    The version of this body's shape — the `v1` of the `/api/v1` paths. Inside it fields are only added (https://imagestep.dev/docs/changelog)
+    """
+    createdAt: Required[str]
+    """
+    When the event was queued — not when this attempt was sent
+    """
+    data: Required[JobItemEventData]
+    id: Required[str]
+    """
+    The event's id, `evt_…` — the same on every retry of it, so a receiver can drop a repeat
+    """
+    type: Required[Literal['job.item.completed', 'job.item.failed']]
+    """
+    What happened; it decides the shape of `data`
+    """
+
+
+class JobPipeline(TypedDict, total=False):
+    """
+    One pass a deterministic job runs: a name — the variant's, when there is a set of them — and its registry steps
+    """
+
+    name: str
+    """
+    The variant's name, or `op:<name>` for a single op
+    """
+    steps: list[PipelineStep]
+    """
+    The registry steps, in order
+    """
+
+
+class JobSegment(TypedDict, total=False):
+    """
+    One segment of a `chain`: a deterministic pass or one AI step, and what it costs per item
+    """
+
+    bound: bool
+    """
+    True when the model bills by the size of the image it is sent: `costPerItem` was priced at the largest image it is ever sent, and it is the charge whatever the size of an item's own
+    """
+    costPerItem: Required[int]
+    """
+    Credits one item costs on this segment, frozen at submit; 0 for a deterministic one
+    """
+    model: str
+    """
+    An AI segment's model
+    """
+    op: str
+    """
+    The op the segment runs; absent for a pass built from registry steps only
+    """
+    parameters: dict[str, Any]
+    """
+    An AI segment's parameters
+    """
+    pipeline: list[PipelineStep]
+    """
+    A deterministic segment's steps, as one pass
+    """
+    prompt: str
+    """
+    An AI segment's prompt, every `{{subject.<name>}}` expanded
+    """
+    type: Literal['ai-generate', 'ai-edit', 'parse', 'process']
+    """
+    What the segment runs as: a deterministic pass, or an AI op's job type
+    """
+
+
+class ModelDTO(TypedDict, total=False):
+    """
+    A model an AI op can run on, with its price and what it accepts
+    """
+
+    categories: list[str]
+    """
+    What the model is sold for. It runs an op when this includes the op's `modelCategory` (GET /api/v1/ops)
+    """
+    completionPrice: str
+    """
+    Price per 1M output tokens in USD
+    """
+    completion_price: str
+    """
+    Deprecated: `completionPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    contextLength: int
+    """
+    Maximum context window supported by the model (tokens)
+    """
+    context_length: int
+    """
+    Deprecated: `contextLength`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    created: int
+    """
+    Deprecated, and goes on 2027-01-12 with no replacement: it was never when the model changed, only a constant per provider. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    description: str
+    """
+    Short description of the model's capabilities
+    """
+    id: Required[str]
+    """
+    The model's id — what `model` names on a job or a preset step
+    """
+    imageRequired: bool
+    """
+    Whether an input image is required (true), optional (false), or not supported (null)
+    """
+    image_price_range: str
+    """
+    Deprecated: `priceRange`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    image_required: bool
+    """
+    Deprecated: `imageRequired`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    inputModalities: list[str]
+    """
+    Input modalities supported by the model
+    """
+    input_modalities: list[str]
+    """
+    Deprecated: `inputModalities`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    maxInputEdge: int
+    """
+    The longest edge, in pixels, of an input image this model is handed: a larger input is turned upright, scaled down to it and re-encoded as WebP with no metadata before the provider sees it. For a model billed per megapixel it is also what the quoted price assumes. Absent for a model that takes no image.
+    """
+    maxInputImages: int
+    """
+    Maximum number of input images accepted. null = no image input, 1 = single image, >1 = multi-image
+    """
+    max_input_edge: int
+    """
+    Deprecated: `maxInputEdge`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    max_input_images: int
+    """
+    Deprecated: `maxInputImages`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    mode: Literal['ai_image', 'analyze']
+    """
+    Model mode: `analyze` for the models the analyze op sells, `ai_image` for the rest
+    """
+    name: str
+    """
+    Human readable model name
+    """
+    outputModalities: list[str]
+    """
+    Output modalities supported by the model
+    """
+    output_modalities: list[str]
+    """
+    Deprecated: `outputModalities`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    parameters: Any
+    """
+    Deprecated: read `params`, the same declaration in the op catalogue's shape; goes on 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields. A list of `{key, label, type, defaultValue}`, with `options` or `min` / `max` where the value is bounded
+    """
+    params: dict[str, ModelParam]
+    """
+    What a job's `parameters` may carry on this model, in the op catalogue's shape (`GET /api/v1/ops` → `params`): name → `{type, enum?, min?, max?, default?, title, description?}`. A key not here, or a value outside its `enum` or bounds, is `400 invalid_param`. Empty for an `analyze` model: its two parameters are the op's own
+    """
+    priceRange: str
+    """
+    Our price per image in USD — the provider's list price plus our markup — as one figure, or min - max across sizes, qualities or scale factors
+    """
+    promptPrice: str
+    """
+    Price per 1M input tokens in USD
+    """
+    prompt_price: str
+    """
+    Deprecated: `promptPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    providerPrice: str
+    """
+    The provider's list price per image in USD, before our markup — the cheapest end when the price has a range. Every model carries one, so our multiple of it can be checked.
+    """
+    providerPriceRange: str
+    """
+    The provider's list price range in USD across the same span as `priceRange`. Present only for models whose provider price depends on a parameter.
+    """
+    provider_price: str
+    """
+    Deprecated: `providerPrice`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    provider_price_range: str
+    """
+    Deprecated: `providerPriceRange`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    series: str
+    """
+    Provider family derived from the model id prefix
+    """
+    structuredOutput: bool
+    """
+    Whether the model supports JSON schema structured output
+    """
+    support_structured_output: bool
+    """
+    Deprecated: `structuredOutput`, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    supported_parameters: list[str]
+    """
+    Deprecated: `params`' keys, until 2027-01-12. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
     """
 
 
@@ -2598,7 +2907,7 @@ class OpDefinition(TypedDict, total=False):
     """
     maxInputEdge: int
     """
-    AI ops: the longest edge, in pixels, an input image is scaled down to before the default model sees it; another model's is its `max_input_edge` in GET /api/v1/ai-models
+    AI ops: the longest edge, in pixels, an input image is scaled down to before the default model sees it; another model's is its `maxInputEdge` in GET /api/v1/ai-models
     """
     modelCategory: str
     """
@@ -2610,7 +2919,7 @@ class OpDefinition(TypedDict, total=False):
     """
     params: dict[str, dict[str, Any]]
     """
-    The parameter contract: name → `{type, enum?, min?, max?, default?, description}`. A deterministic op refuses any other parameter with `400 invalid_param`
+    The parameter contract: name → `{type, enum?, min?, max?, required?, default?, description}` — `enum`, `min` / `max` and `required` are what the op enforces. A deterministic op refuses any other parameter with `400 invalid_param`
     """
     pricing: OpPricing
     """
@@ -2620,11 +2929,11 @@ class OpDefinition(TypedDict, total=False):
     """
     What a step of this op hands to the next: an image, or a JSON answer — which only a last step can produce
     """
-    requiresAssets: bool
+    requiresAssets: Required[bool]
     """
     Whether a job of this op needs `assetIds`
     """
-    requiresPrompt: bool
+    requiresPrompt: Required[bool]
     """
     Whether a job of this op needs a `prompt`
     """
@@ -2638,12 +2947,44 @@ class OpDefinition(TypedDict, total=False):
     """
 
 
-class ApiResponseOpDefinition(TypedDict, total=False):
+class PipelineData(TypedDict, total=False):
+    """
+    An inline processing pipeline: a name and the registry steps a process job runs.
+    """
+
+    name: str
+    pipeline: list[PipelineStep]
+
+
+class PresetVersion(TypedDict, total=False):
+    """
+    A superseded version of a preset: its steps and subjects as they were, and when that version was saved.
+    """
+
+    steps: list[PresetStep]
+    """
+    The steps as that version had them.
+    """
+    subjects: list[Subject]
+    """
+    The subjects as that version had them.
+    """
+    updatedAt: str
+    """
+    When that version was saved.
+    """
+    version: int
+    """
+    The version number; `slug@version` runs and reads exactly this.
+    """
+
+
+class ApiResponseAssetStatuses(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: OpDefinition
+    data: Required[AssetStatuses]
     """
     The response data payload
     """
@@ -2659,7 +3000,7 @@ class ApiResponseOpDefinition(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2669,12 +3010,12 @@ class ApiResponseOpDefinition(TypedDict, total=False):
     """
 
 
-class ApiResponseListJobSummary(TypedDict, total=False):
+class ApiResponseBatchImportResultDTOTemplateData(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[JobSummary]
+    data: Required[BatchImportResultDTOTemplateData]
     """
     The response data payload
     """
@@ -2690,7 +3031,7 @@ class ApiResponseListJobSummary(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2700,12 +3041,12 @@ class ApiResponseListJobSummary(TypedDict, total=False):
     """
 
 
-class ApiResponseListJobCount(TypedDict, total=False):
+class ApiResponseJobEstimate(TypedDict, total=False):
     """
-    Standard API response wrapper containing status, message, data and timestamp
+    The dry run's answer: `data` is the estimate; nothing was created
     """
 
-    data: list[JobCount]
+    data: Required[JobEstimate]
     """
     The response data payload
     """
@@ -2721,7 +3062,7 @@ class ApiResponseListJobCount(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2736,7 +3077,7 @@ class ApiResponseListAssetSummary(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[AssetSummary]
+    data: Required[list[AssetSummary]]
     """
     The response data payload
     """
@@ -2752,7 +3093,7 @@ class ApiResponseListAssetSummary(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2762,12 +3103,12 @@ class ApiResponseListAssetSummary(TypedDict, total=False):
     """
 
 
-class ApiResponseListCollectionSummary(TypedDict, total=False):
+class ApiResponseListFromUrlResult(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[CollectionSummary]
+    data: Required[list[FromUrlResult]]
     """
     The response data payload
     """
@@ -2783,7 +3124,7 @@ class ApiResponseListCollectionSummary(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2798,7 +3139,7 @@ class ApiResponseListModelDTO(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[ModelDTO]
+    data: Required[list[ModelDTO]]
     """
     The response data payload
     """
@@ -2814,7 +3155,7 @@ class ApiResponseListModelDTO(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2824,75 +3165,12 @@ class ApiResponseListModelDTO(TypedDict, total=False):
     """
 
 
-class PresetData(TypedDict, total=False):
-    """
-    A preset: a named, versioned list of steps, each an L1 op or a processing-registry step. GET returns the export shape; POST /api/v1/presets/import takes it back.
-    """
-
-    builtIn: bool
-    """
-    Whether this is a built-in preset (read-only)
-    """
-    createdAt: str
-    """
-    When the preset was created
-    """
-    description: str
-    """
-    Free text for people; not run. `""` on a PUT empties it.
-    """
-    id: str
-    """
-    Preset id (`pre_…`; a built-in's starts with `builtin-`). A job's `presetId` takes it, the slug, or either with `@version`.
-    """
-    name: str
-    """
-    Display name (required on create).
-    """
-    slug: str
-    """
-    URL-safe handle, unique per account: lowercase letters, digits and hyphens. Generated from the name when absent (a numeric suffix keeps it unique); one you send must be free. `builtin-` is reserved.
-    """
-    steps: list[PresetStep]
-    """
-    The steps, run in order. Each is `{op, model?, prompt?, parameters?}` (an op from GET /api/v1/ops) or `{operation, params}` (a processing-registry key, for what no op covers). Checked when written: a parameter outside its op's contract is 400 invalid_param on `steps[i].parameters.<name>`. Adjacent deterministic steps run as one `process` pass and each AI step as its op's own job; those are the preset's segments. One segment runs as that job; more than one — an AI step beside other steps, or several AI steps — runs as one `chain` job, each item walking the segments in order with the output of one as the input of the next.
-    """
-    subjects: list[Subject]
-    """
-    What has to look the same every time: each subject is `{name, referenceAssetIds, descriptor}`, at most 4 of them. The images (max 4 across all subjects, your own, status DONE) ride along on the preset's generate / edit step and pin the geometry; the descriptor expands into its prompt wherever you write `{{subject.<name>}}`. A preset with subjects needs a generate or edit step.
-    """
-    updatedAt: str
-    """
-    When the preset was last saved, a rename included — the order your own rows are listed in. On an earlier version read as `slug@N`, when that version was saved.
-    """
-    usage: PresetUsage
-    """
-    How often this preset has run and when it last did, over the jobs still on record (imagestep#423). Present on reads — GET /api/v1/presets and GET /api/v1/presets/{slug} — and left off a write, which answers about what it just saved. Derived, never stored.
-    """
-    version: int
-    """
-    Starts at 1 and goes up whenever `steps` or `subjects` change; a name, description or slug edit is not a version. Run or read an earlier one as `slug@version` / `?version=N`.
-    """
-    versionCount: int
-    """
-    How many versions are on record: the current one plus every superseded one. Always present on a read, whether or not `versions` is, so a list reader can tell a preset with history from one without fetching it.
-    """
-    versions: list[PresetVersion]
-    """
-    Superseded versions, oldest first. Present in exports so an import replays the same history. GET /api/v1/presets leaves it off unless you ask for `?includeVersions=true` — a list row does not need every snapshot of every preset, and `versionCount` says whether there is any history to read.
-    """
-    warnings: list[StepWarning]
-    """
-    What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. What could not run at all was refused instead, 400 invalid_param naming the step.
-    """
-
-
-class ApiResponsePresetData(TypedDict, total=False):
+class ApiResponseListOpDefinition(TypedDict, total=False):
     """
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: PresetData
+    data: Required[list[OpDefinition]]
     """
     The response data payload
     """
@@ -2908,7 +3186,7 @@ class ApiResponsePresetData(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -2918,22 +3196,282 @@ class ApiResponsePresetData(TypedDict, total=False):
     """
 
 
-class BatchImportResultDTOPresetData(TypedDict, total=False):
+class ApiResponseOpDefinition(TypedDict, total=False):
     """
-    What an import did: the entries that landed, and one line for each that did not
+    Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[PresetData]
+    data: Required[OpDefinition]
     """
-    The created resources, as saved, in the order sent
+    The response data payload
     """
-    errors: list[str]
+    error: ApiError
     """
-    One line per refused entry, naming its index and why (`Preset at index 2 'Hero': …`). Absent when every entry landed.
+    Structured error; present exactly when the request failed
     """
-    importedCount: int
+    message: str
     """
-    How many entries were created — the length of `data`
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class Asset(TypedDict, total=False):
+    """
+    One stored image: what it is called, what it is, how it is labelled and published, when it expires and, for a job's output, how it was made
+    """
+
+    collection: str
+    """
+    The collection it is in — an opaque label you chose, matched exactly; absent when it is in none
+    """
+    createdAt: int
+    """
+    Epoch millis; the library is listed newest-created first. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+    error: ItemError
+    """
+    Why ingest failed — on a FAILED asset only. `retryable: false` is the file itself (`unsupported_format`: not an image this service can read; `invalid_param`): uploading the same bytes fails the same way. `retryable: true` (`internal_error`) is ours: uploading it again may succeed
+    """
+    expiresAt: int
+    """
+    Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+    id: Required[str]
+    """
+    Asset ID: `ast_` and 32 hex digits
+    """
+    image: AssetImage
+    """
+    What the asset is, as ingest measured it
+    """
+    lineage: AssetLineage
+    """
+    How a job made it — absent on an upload. Written with the asset and never changed
+    """
+    metadata: dict[str, str]
+    """
+    Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map POST /api/v1/images/metadata answers with; every value is a string. Absent until ingest has read it
+    """
+    name: str
+    """
+    Display name — an upload's file name without its extension, cut to 200 characters. Not unique; `id` is what addresses the asset
+    """
+    publicUrl: str
+    """
+    The CDN URL of the full-size image, once published; absent otherwise. Unpublishing or deleting takes it down within about two minutes
+    """
+    published: Required[bool]
+    """
+    Whether it is on the public CDN — `publicUrl` is there when it is. Set with POST /api/v1/assets/update
+    """
+    source: Literal['upload', 'process', 'ai-generate', 'ai-edit', 'render']
+    """
+    Where it came from: `upload`, or the kind of job that made it
+    """
+    status: Required[Literal['PROCESSING', 'DONE', 'FAILED']]
+    """
+    PROCESSING while ingest reads the bytes; DONE once it has measured them — the asset can then be processed and published; FAILED for an upload ingest could not read, kept a day so you can see why
+    """
+    tags: list[str]
+    """
+    Your own labels, [] when there are none — what GET /api/v1/assets?tag= matches. A default analyze appends the tags and objects it found after yours
+    """
+    takenAt: int
+    """
+    When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+    updatedAt: int
+    """
+    Epoch millis of the last change you made to a label — name, collection, tags, published — or the creation time until then. Ingest and analysis do not move it. Becomes an ISO-8601 date-time string, like every other time in this API, on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-asset-times-iso)
+    """
+
+
+class Job(TypedDict, total=False):
+    actualCredits: Required[int]
+    """
+    Credits charged: set when the job settles, for the work that completed; 0 until then, and for deterministic work, which spends none
+    """
+    apiKeyId: str
+    """
+    The API key that submitted it; absent for a signed-in console session
+    """
+    attemptNumber: Required[int]
+    """
+    1 for a fresh job, one more for each resume
+    """
+    cancelledItems: Required[int]
+    """
+    Items cancelled before they ran
+    """
+    collection: str
+    """
+    The collection the outputs go in, as the request named it; absent when it named none (an output made from an asset then lands in that asset's collection)
+    """
+    completedAt: str
+    """
+    When it reached a terminal status
+    """
+    completedItems: Required[int]
+    """
+    Items that completed
+    """
+    costPerItem: Required[int]
+    """
+    Credits one item is priced at — what the job was quoted; 0 for deterministic work, and on a chain the sum of its segments
+    """
+    createdAt: Required[str]
+    """
+    When it was submitted
+    """
+    errorCode: str
+    """
+    The verdict on the failed items, from the closed set of error codes: a retryable item's code when any is retryable, else the first failed item's. Absent when nothing failed, or no failure was classified
+    """
+    errorMessage: str
+    """
+    On a job with failed items, one line for a person ("2 of 3 items failed"); each item carries its own `error`
+    """
+    expiresAt: str
+    """
+    When the record is swept — the plan's retention window at submit, the same as the assets it made. Never shortened by a downgrade
+    """
+    failedItems: Required[int]
+    """
+    Items that failed — each says why, and whether a resume could help
+    """
+    id: Required[str]
+    """
+    The job's id, `job_…`
+    """
+    items: list[JobItem]
+    """
+    The items, in order: the first 100 of them. `itemsTruncated` says when there are more — GET /api/v1/jobs/{id}/items pages the rest
+    """
+    itemsNextCursor: str
+    """
+    Present when `itemsTruncated` is: the `cursor` for GET /api/v1/jobs/{id}/items that reads on from the last inline item
+    """
+    itemsTruncated: bool
+    """
+    True when `items` is only the first page of them; absent otherwise
+    """
+    model: str
+    """
+    The model the job calls; absent for deterministic work, and on a chain, whose segments name their own
+    """
+    op: str
+    """
+    The op it was submitted as, when it was submitted as one — what usage groups by
+    """
+    parameters: dict[str, Any]
+    """
+    What the job runs with: an AI op's model parameters, `analyze`'s `schema` and `maxOutputTokens`, or a render's data rows under `items`
+    """
+    parentJobId: str
+    """
+    The attempt this one resumed; absent on a first attempt
+    """
+    pipelines: list[JobPipeline]
+    """
+    A deterministic job's pipeline as stored at submit — one per variant, named after it — with each layer named by the asset id you gave
+    """
+    presetId: str
+    """
+    The preset it ran, by id; absent for an op, inline steps or a render
+    """
+    presetName: str
+    """
+    The preset's name; `op:<name>` for an op, `Ad-hoc` for a bare type and model; absent for a render
+    """
+    presetVersion: int
+    """
+    The version of the preset it ran — a later edit of the preset never changes it
+    """
+    prompt: str
+    """
+    The prompt the model receives, every `{{subject.<name>}}` already expanded
+    """
+    references: list[str]
+    """
+    The reference images sent with every model call — the subjects' images, resolved at submit
+    """
+    retryable: bool
+    """
+    Whether a resume could help: true when at least one failed item failed for a reason that may pass. Absent with `errorCode`
+    """
+    rootJobId: str
+    """
+    The first attempt's id — the job's own on a first attempt, and the same on every resume of it, so `GET /api/v1/jobs?rootJobId=` lists every attempt
+    """
+    segments: list[JobSegment]
+    """
+    `chain` only: the segments each item walks, in order, frozen at submit with what each costs per item
+    """
+    settledItems: Required[int]
+    """
+    Items that reached an end — completed, failed or cancelled
+    """
+    status: Required[
+        Literal[
+            'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELLING'
+        ]
+    ]
+    """
+    `PENDING` waits for a slot (an account runs a few jobs of one type at a time; the rest queue), `PROCESSING` is running and `CANCELLING` is a cancel waiting for items already running. Then one of the terminal three: `COMPLETED` (no item failed), `FAILED` (at least one did — read the items) or `CANCELLED`.
+    """
+    stepCount: int
+    """
+    How many inline `steps` the job ran; absent for an op or a preset job
+    """
+    steps: list[PresetStep]
+    """
+    The inline `steps` it was submitted with, as written; absent for an op or a preset job
+    """
+    subjects: list[Subject]
+    """
+    The subjects sent with inline `steps`, as checked
+    """
+    submittedAt: str
+    """
+    When it left the queue and started running
+    """
+    submittedItems: Required[int]
+    """
+    Items handed to a provider or worker so far
+    """
+    templateId: str
+    """
+    `render` only: the template, by id
+    """
+    templateName: str
+    """
+    `render` only: the template's name
+    """
+    templateVersion: int
+    """
+    `render` only: the version of the template it rendered
+    """
+    totalItems: Required[int]
+    """
+    How many items the job has — one per asset (times the variants), per image to generate, or per render row
+    """
+    type: Required[
+        Literal['ai-generate', 'ai-edit', 'parse', 'process', 'render', 'chain']
+    ]
+    """
+    What the job runs as — decided by the op, preset or steps it was submitted with
     """
 
 
@@ -3016,12 +3554,75 @@ class JobRequest(TypedDict, total=False):
     """
 
 
-class ApiResponseJobEstimate(TypedDict, total=False):
+class PresetData(TypedDict, total=False):
     """
-    The dry run's answer: `data` is the estimate; nothing was created
+    A preset: a named, versioned list of steps, each an L1 op or a processing-registry step. GET returns the export shape; POST /api/v1/presets/import takes it back.
     """
 
-    data: JobEstimate
+    builtIn: bool
+    """
+    Whether this is a built-in preset (read-only)
+    """
+    createdAt: str
+    """
+    When the preset was created
+    """
+    description: str
+    """
+    Free text for people; not run. `""` on a PUT empties it.
+    """
+    id: str
+    """
+    Preset id (`pre_…`; a built-in's starts with `builtin-`). A job's `presetId` takes it, the slug, or either with `@version`.
+    """
+    name: str
+    """
+    Display name (required on create).
+    """
+    slug: str
+    """
+    URL-safe handle, unique per account: lowercase letters, digits and hyphens. Generated from the name when absent (a numeric suffix keeps it unique); one you send must be free. `builtin-` is reserved.
+    """
+    steps: list[PresetStep]
+    """
+    The steps, run in order. Each is `{op, model?, prompt?, parameters?}` (an op from GET /api/v1/ops) or `{operation, params}` (a processing-registry key, for what no op covers). Checked when written: a parameter outside its op's contract is 400 invalid_param on `steps[i].parameters.<name>`. Adjacent deterministic steps run as one `process` pass and each AI step as its op's own job; those are the preset's segments. One segment runs as that job; more than one — an AI step beside other steps, or several AI steps — runs as one `chain` job, each item walking the segments in order with the output of one as the input of the next.
+    """
+    subjects: list[Subject]
+    """
+    What has to look the same every time: each subject is `{name, referenceAssetIds, descriptor}`, at most 4 of them. The images (max 4 across all subjects, your own, status DONE) ride along on the preset's generate / edit step and pin the geometry; the descriptor expands into its prompt wherever you write `{{subject.<name>}}`. A preset with subjects needs a generate or edit step.
+    """
+    updatedAt: str
+    """
+    When the preset was last saved, a rename included — the order your own rows are listed in. On an earlier version read as `slug@N`, when that version was saved.
+    """
+    usage: PresetUsage
+    """
+    How often this preset has run and when it last did, over the jobs still on record (imagestep#423). Present on reads — GET /api/v1/presets and GET /api/v1/presets/{slug} — and left off a write, which answers about what it just saved. Derived, never stored.
+    """
+    version: int
+    """
+    Starts at 1 and goes up whenever `steps` or `subjects` change; a name, description or slug edit is not a version. Run or read an earlier one as `slug@version` / `?version=N`.
+    """
+    versionCount: int
+    """
+    How many versions are on record: the current one plus every superseded one. Always present on a read, whether or not `versions` is, so a list reader can tell a preset with history from one without fetching it.
+    """
+    versions: list[PresetVersion]
+    """
+    Superseded versions, oldest first. Present in exports so an import replays the same history. GET /api/v1/presets leaves it off unless you ask for `?includeVersions=true` — a list row does not need every snapshot of every preset, and `versionCount` says whether there is any history to read.
+    """
+    warnings: list[StepWarning]
+    """
+    What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. What could not run at all was refused instead, 400 invalid_param naming the step.
+    """
+
+
+class ApiResponseAsset(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[Asset]
     """
     The response data payload
     """
@@ -3037,7 +3638,7 @@ class ApiResponseJobEstimate(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -3052,7 +3653,7 @@ class ApiResponseJob(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: Job
+    data: Required[Job]
     """
     The response data payload
     """
@@ -3068,230 +3669,7 @@ class ApiResponseJob(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class Asset(TypedDict, total=False):
-    """
-    One stored image: what it is called, what it is, how it is labelled and published, when it expires and, for a job's output, how it was made
-    """
-
-    collection: str
-    """
-    The collection it is in — an opaque label you chose, matched exactly; absent when it is in none
-    """
-    createdAt: int
-    """
-    Epoch millis; the library is listed newest-created first
-    """
-    error: AssetError
-    expiresAt: int
-    """
-    Epoch millis when the asset and its objects are deleted. Stamped at creation from your plan's retention and never recomputed, so a downgrade does not shorten it; an upload that fails ingest expires a day after it was created
-    """
-    id: str
-    """
-    Asset ID: `ast_` and 32 hex digits
-    """
-    image: AssetImage
-    """
-    What the asset is, as ingest measured it
-    """
-    lineage: AssetLineage
-    """
-    How a job made it — absent on an upload. Written with the asset and never changed
-    """
-    metadata: dict[str, Any]
-    """
-    Everything the file says about itself, as exiftool read it, under exiftool's own tag names — the map POST /api/v1/images/metadata answers with. Absent until ingest has read it
-    """
-    name: str
-    """
-    Display name — an upload's file name without its extension, cut to 200 characters. Not unique; `id` is what addresses the asset
-    """
-    publicUrl: str
-    """
-    The CDN URL of the full-size image, once published; absent otherwise. Unpublishing or deleting takes it down within about two minutes
-    """
-    published: bool
-    """
-    Whether it is on the public CDN — `publicUrl` is there when it is. Set with POST /api/v1/assets/update
-    """
-    source: Literal['upload', 'process', 'ai-generate', 'ai-edit', 'render']
-    """
-    Where it came from: `upload`, or the kind of job that made it
-    """
-    status: Literal['PROCESSING', 'DONE', 'FAILED']
-    """
-    PROCESSING while ingest reads the bytes; DONE once it has measured them — the asset can then be processed and published; FAILED for an upload ingest could not read, kept a day so you can see why
-    """
-    tags: list[str]
-    """
-    Your own labels, [] when there are none — what GET /api/v1/assets?tag= matches. A default analyze appends the tags and objects it found after yours
-    """
-    takenAt: int
-    """
-    When the picture was taken, epoch millis — the capture time: metadata.DateTimeOriginal, else CreateDate, else GPSDateTime (UTC). What takenFrom / takenTo on GET /api/v1/assets filter. Absent when the image does not say
-    """
-    updatedAt: int
-    """
-    Epoch millis of the last change you made to a label — name, collection, tags, published — or the creation time until then. Ingest and analysis do not move it
-    """
-
-
-class ApiResponseListFromUrlResult(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[FromUrlResult]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ApiResponseListPresetData(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[PresetData]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ApiResponseListOpDefinition(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: list[OpDefinition]
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ApiResponseAsset(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: Asset
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
-    """
-    Indicates if the request was successful
-    """
-    timestamp: str
-    """
-    Timestamp when the response was generated
-    """
-
-
-class ApiResponseBatchImportResultDTOPresetData(TypedDict, total=False):
-    """
-    Standard API response wrapper containing status, message, data and timestamp
-    """
-
-    data: BatchImportResultDTOPresetData
-    """
-    The response data payload
-    """
-    error: ApiError
-    """
-    Structured error; present exactly when the request failed
-    """
-    message: str
-    """
-    Human-readable message about the response
-    """
-    meta: PageMeta
-    """
-    Pagination metadata for list responses
-    """
-    success: bool
+    success: Required[bool]
     """
     Indicates if the request was successful
     """
@@ -3306,7 +3684,7 @@ class ApiResponseListAsset(TypedDict, total=False):
     Standard API response wrapper containing status, message, data and timestamp
     """
 
-    data: list[Asset]
+    data: Required[list[Asset]]
     """
     The response data payload
     """
@@ -3322,7 +3700,123 @@ class ApiResponseListAsset(TypedDict, total=False):
     """
     Pagination metadata for list responses
     """
-    success: bool
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponseListPresetData(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[list[PresetData]]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class ApiResponsePresetData(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[PresetData]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
+    """
+    Indicates if the request was successful
+    """
+    timestamp: str
+    """
+    Timestamp when the response was generated
+    """
+
+
+class BatchImportResultDTOPresetData(TypedDict, total=False):
+    """
+    What an import did: the entries that landed, and one failure for each that did not
+    """
+
+    data: list[PresetData]
+    """
+    The created resources, as saved, in the order sent
+    """
+    errors: list[str]
+    """
+    Deprecated: the same refusals as `failures`, one English line each (`Preset at index 2 'Hero': …`); goes on 2027-01-12 (https://imagestep.dev/docs/changelog#2026-10-14-per-row-failures). Read `failures`, which has the index and a `code` to branch on (imagestep#755). Absent when every entry landed.
+    """
+    failures: list[ImportFailure]
+    """
+    One per refused entry, in the order sent: its `index` in what you sent, and why — the fields of an `ItemError` (imagestep#755). Absent when every entry landed.
+    """
+    importedCount: Required[int]
+    """
+    How many entries were created — the length of `data`
+    """
+
+
+class ApiResponseBatchImportResultDTOPresetData(TypedDict, total=False):
+    """
+    Standard API response wrapper containing status, message, data and timestamp
+    """
+
+    data: Required[BatchImportResultDTOPresetData]
+    """
+    The response data payload
+    """
+    error: ApiError
+    """
+    Structured error; present exactly when the request failed
+    """
+    message: str
+    """
+    Human-readable message about the response
+    """
+    meta: PageMeta
+    """
+    Pagination metadata for list responses
+    """
+    success: Required[bool]
     """
     Indicates if the request was successful
     """

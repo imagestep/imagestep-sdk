@@ -1,6 +1,6 @@
 {
   "name": "imagestep",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ImageStep SDK — the image step for your automations: generate, edit, remove backgrounds, upscale, convert and read metadata through one API key, one job handle and one stable URL.",
   "license": "MIT",
   "type": "module",

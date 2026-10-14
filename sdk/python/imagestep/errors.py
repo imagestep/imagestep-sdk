@@ -15,6 +15,7 @@ class ImageStepError(Exception):
 
     An answer with no error envelope — a proxy's HTML 502, a bare 429 — carries no `retryable`
     of its own; then a 429 or a 5xx is retryable and anything else is not, as in the JS SDK (#568).
+    It names no code either, and `code` is None rather than one the service never sent (#766).
     """
 
     def __init__(
@@ -31,7 +32,7 @@ class ImageStepError(Exception):
     ):
         super().__init__(message or f"ImageStep request failed ({status})")
         self.status = status
-        self.code = code or ("internal_error" if status >= 500 else "unknown_error")
+        self.code = code or None
         self.message = str(self)
         self.retryable = (status == 429 or status >= 500) if retryable is None else bool(retryable)
         self.param = param

@@ -7,7 +7,7 @@ const DEFAULT_BASE_URL = "https://api.imagestep.dev";
 // This package's version, for the default User-Agent (imagestep#722). A literal because `src/` is what an ESM import loads,
 // as is, in Node, a bundler or a browser, none of which can be relied on to read package.json; test/client.test.js holds it
 // to package.json's `version`, so a release that bumps one without the other is red.
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
 /**
@@ -187,9 +187,10 @@ async function uploadAll(assets, inputs, opts, named = {}) {
     const toFinish = [];
     await mapLimit(files, concurrency, async (file, n) => {
       const stage = staged[n];
-      if (stage.error) {
-        const error = new ImageStepError({ status: 400, code: "invalid_param", message: stage.error, retryable: false, param: "file" });
-        outcome[n] = { name: file.name, error };
+      // The service says why, with a code (imagestep#755): `unsupported_format`, `payload_too_large`, `invalid_param`.
+      if (stage.failure) {
+        const { code, message, retryable, param } = stage.failure;
+        outcome[n] = { name: file.name, error: new ImageStepError({ status: 400, code, message, retryable, param }) };
         return;
       }
       // Same bytes already ingested (sha1 match) → reuse that asset unless the caller wants a fresh row. The presigned
@@ -942,7 +943,7 @@ class Assets {
   }
 
   /**
-   * Ingest state of up to 100 of your assets in one call (#233): `{ id, status, width?, height? }` in request
+   * Ingest state of up to 100 of your assets in one call (#233): `{ id, status, width?, height?, error? }` in request
    * order; ids that are not yours are absent. Nothing is signed and no audit row is written.
    * @param {string|string[]} ids
    */
@@ -1057,11 +1058,15 @@ class Assets {
     return (await this.client.post("/api/v1/assets/update", { ids: [].concat(ids), tags: [].concat(tags) })).data;
   }
 
+  /**
+   * One shape for one id or several, the batch result (imagestep#758). One id is still `DELETE /assets/{id}`, so an
+   * id that is not there throws `404 asset_not_found`; several skip the ones that are gone.
+   */
   async delete(ids) {
     const list = [].concat(ids);
     if (list.length === 1) {
       await this.client.del(`/api/v1/assets/${encodeURIComponent(list[0])}`);
-      return { deleted: 1 };
+      return { deletedCount: 1, deleted: [list[0]] };
     }
     return (await this.client.post("/api/v1/assets/delete", { ids: list })).data;
   }
