@@ -35,7 +35,11 @@ JPEG in one job, publishes them and prints one URL per row. Options: `--template
 
 ## Run the n8n template
 
-Save the template once with the script above. Then import `n8n-template.json`:
+**On n8n's template library**: not listed yet — the link goes here once it is approved.
+<!-- n8n-template-url: replace the line above with the public https://n8n.io/workflows/<id>-… URL (imagestep#459) -->
+
+Save the template once with the script above. Then import `n8n-template.json` (Workflows → Import from file). The yellow
+note on the canvas is the same setup in short; the white ones label each step:
 
 1. **Google Sheets Trigger** / **Write Back to the Row** — pick your spreadsheet and sheet.
 2. **Render the Card** — ImageStep **Operation → render_template**, Input *None*; its *Parameters* build

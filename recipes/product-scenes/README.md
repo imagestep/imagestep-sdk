@@ -51,7 +51,11 @@ GPT-Image), `--sizes ig:1080x1350,x:1600x900,pin:1000x1500`, `--collection <name
 
 ## Run the n8n template
 
-Save the preset once with the script above. Then import `n8n-template.json`:
+**On n8n's template library**: not listed yet — the link goes here once it is approved.
+<!-- n8n-template-url: replace the line above with the public https://n8n.io/workflows/<id>-… URL (imagestep#459) -->
+
+Save the preset once with the script above. Then import `n8n-template.json` (Workflows → Import from file). The yellow
+note on the canvas is the same setup in short; the white ones label each step:
 
 1. **Google Sheets Trigger** / **Write Back to the Row** — pick your spreadsheet and sheet.
 2. **Build the Prompt** — the row's `scene`, with `{{subject.product}}` where the product goes (built in a Code node:

@@ -40,10 +40,14 @@ The manifest has `file, assetId, takenAt, latitude, longitude, collection, width
 
 ## Run the n8n template
 
-Import `n8n-template.json`, then set the Drive folder on **New Field Photo**, the sheet on **Append Manifest Row**, and
-the ImageStep credential on the three ImageStep nodes and on **Collection & Publish** (HTTP Request → Authentication:
-Predefined Credential Type → ImageStep API). Sync a photo into the folder: within a minute it is in the sheet with its
-date, coordinates, collection and URL.
+**On n8n's template library**: not listed yet — the link goes here once it is approved.
+<!-- n8n-template-url: replace the line above with the public https://n8n.io/workflows/<id>-… URL (imagestep#459) -->
+
+The yellow note on the canvas is the setup in short; the white ones label each step. Import `n8n-template.json`, then
+set the Drive folder on **New Field Photo**, the sheet on **Append Manifest Row**, and the ImageStep credential on the
+three ImageStep nodes and on **Collection & Publish** (HTTP Request → Authentication: Predefined Credential Type →
+ImageStep API). Sync a photo into the folder: within a minute it is in the sheet with its date, coordinates, collection
+and URL.
 
 ## What it costs
 

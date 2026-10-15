@@ -3,6 +3,86 @@
   "nodes": [
     {
       "parameters": {
+        "content": "## One card per sheet row from your HTML/CSS template\n\nEvery row you add to a Google Sheet becomes a 1080×1350 card that [ImageStep](https://imagestep.dev/?utm_source=n8n-templates&utm_medium=template&utm_campaign=templated-cards) renders from your own HTML/CSS template, converts to JPEG and publishes, with the URL written back into the row. No model anywhere: the same row always makes the same card.\n\n### How it works\n1. **Google Sheets Trigger** picks up a new row (`brand`, `title`, `subtitle`, `price`, `cta`).\n2. **Render the Card** renders the saved template `promo-card` with the row's values in its `{{ var }}` placeholders. Templates render with JavaScript off and external requests blocked, so a card cannot change because a URL did.\n3. **To JPEG** converts the PNG to a JPEG (quality 88) and publishes it.\n4. **Write Back to the Row** puts the URL and the job id into the same row, matched on `row_number`.\n\n### Setup\n1. Install the ImageStep node (`n8n-nodes-imagestep`) and add an ImageStep credential with an API key from [imagestep.dev/keys](https://imagestep.dev/keys?utm_source=n8n-templates&utm_medium=template&utm_campaign=templated-cards).\n2. Save the `promo-card` template once: the [recipe's script](https://github.com/imagestep/imagestep-sdk/tree/main/recipes/templated-cards?utm_source=n8n-templates&utm_medium=template&utm_campaign=templated-cards) saves its `card.html` and `card.css`.\n3. Make a sheet with the columns `brand`, `title`, `subtitle`, `price`, `cta`, `url` and `jobId`, and pick it in both Google Sheets nodes.\n\n### Customization tips\n- Edit `card.html` / `card.css` and run the script again: a changed byte saves the next template version, and every render job records the version it used.\n- Pictures a real run made: [imagestep.dev/docs/recipes](https://imagestep.dev/docs/recipes?utm_source=n8n-templates&utm_medium=template&utm_campaign=templated-cards#templated-cards).",
+        "height": 820,
+        "width": 560,
+        "color": 1
+      },
+      "id": "c3d4e5f6-0010-4c00-8000-000000000010",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. A new row comes in\nEvery minute the trigger looks for rows added to the sheet. Each row needs `brand`, `title`, `subtitle`, `price` and `cta`.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "c3d4e5f6-0011-4c00-8000-000000000011",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. Render the template\nThe saved template `promo-card`, filled with this row. No model: the same row always makes the same card.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "c3d4e5f6-0012-4c00-8000-000000000012",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3. To JPEG\nThe rendered PNG becomes a JPEG, published with a stable URL.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "c3d4e5f6-0013-4c00-8000-000000000013",
+      "name": "Sticky Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4. URL back into the row\nThe card's URL and the job id go into the row that started it.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "c3d4e5f6-0014-4c00-8000-000000000014",
+      "name": "Sticky Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -280
+      ]
+    },
+    {
+      "parameters": {
         "pollTimes": {
           "item": [
             {

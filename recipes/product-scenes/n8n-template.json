@@ -3,6 +3,86 @@
   "nodes": [
     {
       "parameters": {
+        "content": "## The same product in a new scene for every sheet row\n\nEvery row you add to a Google Sheet names a scene. [ImageStep](https://imagestep.dev/?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-scenes) generates your product in it, crops it to 4:5 (1080×1350), publishes it and writes the URL back into the row. The product stays the same because it is saved once, as a subject on an ImageStep preset — one to three product photos plus a locked description — and sent with every generation.\n\n### How it works\n1. **Google Sheets Trigger** picks up a new row (`scene`).\n2. **Build the Prompt** puts `{{subject.product}}` where the product goes; ImageStep fills in the wording saved on the preset. It is a Code node because n8n reads `{{ }}` in a field as its own expression.\n3. **Generate the Scene** runs the preset `product-scenes`.\n4. **Instagram Size (4:5)** resizes the scene to 1080×1350, cropped to its busiest region, and publishes it.\n5. **Write Back to the Row** puts the URL, the job id and the status into the same row, matched on `row_number`.\n\n### Setup\n1. Install the ImageStep node (`n8n-nodes-imagestep`) and add an ImageStep credential with an API key from [imagestep.dev/keys](https://imagestep.dev/keys?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-scenes).\n2. Save the `product-scenes` preset once: the [recipe's script](https://github.com/imagestep/imagestep-sdk/tree/main/recipes/product-scenes?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-scenes) does it from your product photos.\n3. Make a sheet with the columns `scene`, `url`, `jobId` and `status`, and pick it in both Google Sheets nodes.\n4. Turn on **Dry Run** in Generate the Scene for the first row: it prices the run and spends nothing.\n\n### Customization tips\n- More sizes: add one resize node per size, each reading the same asset id. Keep `withoutEnlargement: false`: a generated image is 1024 px and resize never upscales unless told to.\n- Pictures a real run made: [imagestep.dev/docs/recipes](https://imagestep.dev/docs/recipes?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-scenes#product-scenes).",
+        "height": 820,
+        "width": 560,
+        "color": 1
+      },
+      "id": "b2c3d4e5-0010-4c00-8000-000000000010",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. A new row comes in\nEvery minute the trigger looks for rows added to the sheet. Each row needs a `scene`: where the product is, not what it is.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0011-4c00-8000-000000000011",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. The scene, not the product\n`{{subject.product}}` stands in for the product, and ImageStep fills in the saved wording.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0012-4c00-8000-000000000012",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3. One scene, the same product\nOne job through the preset. Its product photos and locked description go with the generation. Turn on Dry Run to see the price first.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0013-4c00-8000-000000000013",
+      "name": "Sticky Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4. 4:5, published, back in the row\nThe scene is resized to 1080×1350 and published; its URL, the job id and the status go into the row that started it.",
+        "height": 240,
+        "width": 500,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0014-4c00-8000-000000000014",
+      "name": "Sticky Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -280
+      ]
+    },
+    {
+      "parameters": {
         "pollTimes": {
           "item": [
             {

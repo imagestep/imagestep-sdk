@@ -3,6 +3,86 @@
   "nodes": [
     {
       "parameters": {
+        "content": "## Cut-out, white packshot and web size from one product photo\n\nEvery product photo dropped into a Google Drive folder is uploaded once to [ImageStep](https://imagestep.dev/?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-trio) and becomes three published variants, made side by side: a transparent cut-out, a packshot padded in white and a 1200 px web size. Each variant becomes a row in a Google Sheet, with its URL.\n\n### How it works\n1. **New Product Photo** watches the folder; **Download Photo** fetches each new file.\n2. **Upload Once** uploads it and waits until it is ready.\n3. Three branches run on that one asset: **Cut-out (remove_bg)**, the only AI op; **White Packshot (pad)**, 120 px of white on every side; **Web Size (resize)**, inside 1200 px wide, never enlarged. Each publishes its output.\n4. **Merge** and **One Row Per Variant** turn the three jobs into one row each.\n5. **Append Manifest Row** adds them to the sheet.\n\n### Setup\n1. Install the ImageStep node (`n8n-nodes-imagestep`) and add an ImageStep credential with an API key from [imagestep.dev/keys](https://imagestep.dev/keys?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-trio), and set it on the four ImageStep nodes.\n2. Pick the Drive folder on **New Product Photo** and the sheet on **Append Manifest Row**; give the sheet the columns `file`, `variant`, `publicUrl`, `width`, `height` and `jobId`.\n3. Turn on **Dry Run** in Cut-out for the first photo: it prices the AI op and spends nothing.\n\n### Customization tips\n- Change the padding, its colour or the width in each branch's *Parameters*.\n- Want the packshot around the cut-out instead? Chain the two: [the marketplace cut-out](https://imagestep.dev/docs/recipes?utm_source=n8n-templates&utm_medium=template&utm_campaign=product-trio#marketplace-cutout) is that chain as a preset.",
+        "height": 820,
+        "width": 560,
+        "color": 1
+      },
+      "id": "b2c3d4e5-0010-4c00-8000-000000000010",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. A photo lands in Drive\nEvery minute the trigger checks the folder and downloads each new photo.",
+        "height": 240,
+        "width": 420,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0011-4c00-8000-000000000011",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. Upload once\nAll three variants start from this one asset.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0012-4c00-8000-000000000012",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3. Three variants, side by side\nCut-out (AI), white packshot and web size: three jobs on the same asset, each output published with its own URL.",
+        "height": 240,
+        "width": 240,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0013-4c00-8000-000000000013",
+      "name": "Sticky Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        660,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4. One row per variant\nThe three jobs are merged into a row each: the file, which variant, its URL, size and job id.",
+        "height": 240,
+        "width": 600,
+        "color": 7
+      },
+      "id": "b2c3d4e5-0014-4c00-8000-000000000014",
+      "name": "Sticky Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        920,
+        -280
+      ]
+    },
+    {
+      "parameters": {
         "pollTimes": {
           "item": [
             {
