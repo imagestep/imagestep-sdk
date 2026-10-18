@@ -27,7 +27,9 @@ export function buildProgram() {
   program
     .name("imagestep")
     .description("ImageStep CLI - image ops, presets, jobs, assets, templates and webhooks from the terminal")
-    .version(version);
+    .version(version)
+    // Read before parsing, in utils/logger.js, so the colours of everything printed go with it (#828).
+    .option("--no-color", "no colour in the output (NO_COLOR=1 does the same)");
 
   program.addCommand(loginCommand);
   program.addCommand(logoutCommand);

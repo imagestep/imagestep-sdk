@@ -587,6 +587,115 @@ def test_upload_surfaces_a_stage_error_and_a_failed_put():
     assert excinfo.value.status == 403 and excinfo.value.retryable is True
 
 
+def _storage_fails_once_router():
+    """`upload_router`, with storage answering the first PUT 503 (Retry-After: 0) and every later one 200."""
+    base, puts = upload_router(), []
+
+    def route(request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith("https://bucket/"):
+            puts.append(request)
+            return httpx.Response(503, headers={"Retry-After": "0"}) if len(puts) == 1 else httpx.Response(200)
+        return base(request)
+
+    return route, puts
+
+
+def test_upload_streams_a_path_and_sends_it_whole_again_on_a_retry(tmp_path):
+    # #822: a path was read whole into memory (and copied again by httpx); it is streamed from disk with its length now,
+    # so the body of a retried PUT has to come from a fresh read of the file, not from a stream the first try drained.
+    photo = tmp_path / "big.png"
+    photo.write_bytes(bytes(range(256)) * 9000)  # 2.2 MiB: more than one 1 MiB piece
+    route, puts = _storage_fails_once_router()
+    rec = Recorder(router=route)
+    client(rec, max_retries=1).assets.upload(photo, wait=False)
+
+    assert json.loads(rec.calls[0].content)[0]["sha1Hash"] == hashlib.sha1(photo.read_bytes()).hexdigest()
+    assert len(puts) == 2
+    for put in puts:
+        assert put.content == photo.read_bytes()
+        assert put.headers["Content-Length"] == str(photo.stat().st_size)
+        assert "Transfer-Encoding" not in put.headers
+
+
+async def test_async_upload_streams_a_path_and_sends_it_whole_again_on_a_retry(tmp_path):
+    photo = tmp_path / "big.png"
+    photo.write_bytes(bytes(range(256)) * 9000)
+    route, puts = _storage_fails_once_router()
+    async with aclient(Recorder(router=route), max_retries=1) as c:
+        await c.assets.upload(photo, wait=False)
+    assert len(puts) == 2
+    for put in puts:
+        assert put.content == photo.read_bytes()
+        assert put.headers["Content-Length"] == str(photo.stat().st_size)
+
+
+class _CountingStorage(httpx.BaseTransport, httpx.AsyncBaseTransport):
+    """The upload flow's service, with a storage PUT that counts the body as it arrives and keeps none of it —
+    `MockTransport` reads every body into memory first, which is the very thing measured here."""
+
+    def __init__(self):
+        self.received = 0
+        self.route = upload_router()
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        return self.route(request)
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith("https://bucket/"):
+            for chunk in request.stream:
+                self.received += len(chunk)
+            return httpx.Response(200)
+        request.read()
+        return self._answer(request)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith("https://bucket/"):
+            async for chunk in request.stream:
+                self.received += len(chunk)
+            return httpx.Response(200)
+        await request.aread()
+        return self._answer(request)
+
+
+def test_uploading_a_path_holds_a_few_mb_not_the_file(tmp_path):
+    # #822: 3x the file size before (a 100 MB RAW was ~300 MB at peak, four at a time with upload_many).
+    import tracemalloc
+
+    photo = tmp_path / "raw.png"
+    with open(photo, "wb") as f:
+        for _ in range(32):
+            f.write(b"\x5a" * (1 << 20))
+    storage = _CountingStorage()
+    tracemalloc.start()
+    try:
+        with ImageStep("is_sk_test", base_url="https://api.test", transport=storage, max_retries=0) as c:
+            c.assets.upload(photo, wait=False)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert storage.received == 32 << 20
+    assert peak < 8 << 20, f"peak {peak / (1 << 20):.1f} MiB for a 32 MiB file"
+
+
+async def test_async_uploading_a_path_holds_a_few_mb_not_the_file(tmp_path):
+    import tracemalloc
+
+    photo = tmp_path / "raw.png"
+    with open(photo, "wb") as f:
+        for _ in range(32):
+            f.write(b"\x5a" * (1 << 20))
+    storage = _CountingStorage()
+    tracemalloc.start()
+    try:
+        async with AsyncImageStep("is_sk_test", base_url="https://api.test", transport=storage, max_retries=0) as c:
+            await c.assets.upload(photo, wait=False)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+    assert storage.received == 32 << 20
+    assert peak < 8 << 20, f"peak {peak / (1 << 20):.1f} MiB for a 32 MiB file"
+
+
 # ────────────────────────────────────────── async ──────────────────────────────────────────
 
 

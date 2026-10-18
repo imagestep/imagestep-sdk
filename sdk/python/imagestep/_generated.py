@@ -2504,7 +2504,7 @@ class FromUrlResult(TypedDict, total=False):
 
     error: ItemError
     """
-    Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable)
+    Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time, or this node was full when its turn came; retryable), `rate_limited` (your account had too many synchronous calls in flight when its turn came; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable)
     """
     existing: bool
     """

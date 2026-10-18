@@ -38,6 +38,10 @@ and before 1.0 a minor version may change the interface.
 
 ### Fixed
 
+- `assets.upload()` / `upload_many()` (sync and async) stream a file given by its path: it is hashed 1 MiB at a time
+  and sent from disk with its length, opened again for a retry. It used to be read into memory whole and copied again
+  by httpx — about three times the file at peak, per file in flight (`upload_many` runs four at once). `put_object()`
+  takes a path as well as bytes. Bytes passed in are no longer copied.
 - `ModelDTO["supported_parameters"]` is typed `list[str]`: the keys a job's `parameters` may name on that model,
   derived by the API from the model's `parameters` (on some models it used to be a different, wrong list).
 - `assets.iterate`, `jobs.iterate`, `jobs.iterate_items`, `jobs.outputs` and `agent.iterate_reports` (sync and async)

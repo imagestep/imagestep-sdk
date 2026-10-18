@@ -133,7 +133,7 @@ Behaviours to know:
 |---|---|
 | `--out <file>` | The output **file** (single input only), and the only way to write over the input. `-o, --output` still means the output **format** here, as in every other command — a flag never gets two meanings |
 | `-d, --dir <directory>` | One output file per input; mutually exclusive with `--out` |
-| `--concurrency <n>` | Files processed at once, default 4 |
+| `--concurrency <n>` | Files processed at once, default 3 — what one account gets of a node's synchronous lane, which keeps its last slot for other accounts |
 | `--no-retry` | Disable retries |
 
 **Retries** are what this has over a bare `curl`: when the server's error body says

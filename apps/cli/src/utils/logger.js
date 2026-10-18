@@ -1,5 +1,10 @@
 import chalk from "chalk";
 
+// No colour when NO_COLOR is set and not empty (no-color.org), or with `--no-color` (#828): chalk's own detection reads
+// only that flag and TERM=dumb. The level is chalk's one shared setting, so this turns off every colour the CLI prints;
+// the formatter reads it for the -o json / yaml highlighting and the table borders, which use other colour libraries.
+if (process.env.NO_COLOR || process.argv.includes("--no-color")) chalk.level = 0;
+
 // The npm level order winston used, so a LOG_LEVEL written for it still means what it did.
 const LEVELS = { error: 0, warn: 1, info: 2, http: 3, verbose: 4, debug: 5, silly: 6 };
 const COLOR = { error: chalk.red, warn: chalk.yellow, info: chalk.blue, debug: chalk.magenta };

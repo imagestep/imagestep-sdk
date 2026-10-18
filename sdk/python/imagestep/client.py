@@ -109,7 +109,7 @@ def _read_source(source: Any, name: str | None, mime_type: str | None) -> tuple[
             data = f.read()
         name = name or os.path.basename(path)
     elif isinstance(source, (bytes, bytearray, memoryview)):
-        data = bytes(source)
+        data = source if isinstance(source, bytes) else bytes(source)  # bytes as they are: no copy (#822)
     elif hasattr(source, "read"):
         data = source.read()
         if isinstance(data, str):
@@ -231,13 +231,41 @@ def _chunks(items: list[Any], size: int) -> list[list[Any]]:
     return [items[at : at + size] for at in range(0, len(items), size)]
 
 
+_CHUNK = 1 << 20
+
+
+def _path_chunks(path: str) -> Iterator[bytes]:
+    """A file on disk in 1 MiB pieces, opened when the first one is asked for."""
+    with open(path, "rb") as f:
+        while chunk := f.read(_CHUNK):
+            yield chunk
+
+
+async def _apath_chunks(path: str) -> AsyncIterator[bytes]:
+    """`_path_chunks` for the async client — httpx's AsyncClient streams only an async iterable — with the disk reads
+    off the event loop."""
+    f = await asyncio.to_thread(open, path, "rb")
+    try:
+        while chunk := await asyncio.to_thread(f.read, _CHUNK):
+            yield chunk
+    finally:
+        f.close()
+
+
 def _describe_upload(source: Any, name: str | None = None, mime_type: str | None = None) -> dict[str, Any]:
-    """What an upload needs before staging — name, type, size, SHA-1 — without holding every file's bytes at once:
-    a path is read to be hashed and read again to be sent; bytes and a read file object are kept, they are already
-    in memory."""
+    """What an upload needs before staging — name, type, size, SHA-1 — without holding a file's bytes (#822): a path
+    is hashed 1 MiB at a time and streamed again from disk by the PUT, so a 100 MB file costs a few MB of memory, not
+    three copies of itself. Bytes and a read file object are kept, they are already in memory."""
+    if isinstance(source, (str, os.PathLike)):
+        path = os.fspath(source)
+        sha1, size = hashlib.sha1(), 0
+        for chunk in _path_chunks(path):
+            sha1.update(chunk)
+            size += len(chunk)
+        name = name or os.path.basename(path)
+        return {"source": path, "name": name, "mime": mime_type or _mime_from_name(name), "size": size, "sha1": sha1.hexdigest(), "data": None}
     data, name, mime = _read_source(source, name, mime_type)
-    keep = None if isinstance(source, (str, os.PathLike)) else data
-    return {"source": source, "name": name, "mime": mime, "size": len(data), "sha1": hashlib.sha1(data).hexdigest(), "data": keep}
+    return {"source": source, "name": name, "mime": mime, "size": len(data), "sha1": hashlib.sha1(data).hexdigest(), "data": data}
 
 
 def _error_dict(error: ImageStepError) -> dict[str, Any]:
@@ -684,22 +712,30 @@ class ImageStep:
                     raise
                 time.sleep(self._core.error_backoff(attempt, error))
 
-    def put_object(self, url: str, data: bytes, content_type: str, timeout: float | None = None) -> httpx.Response:
-        """PUT raw bytes to a presigned storage URL (no API headers — the URL carries the auth).
+    def put_object(self, url: str, data: bytes | str | os.PathLike[str], content_type: str, timeout: float | None = None) -> httpx.Response:
+        """PUT raw bytes, or the file at a path, to a presigned storage URL (no API headers — the URL carries the auth).
 
         `content_type` must be the value stage-upload signed the URL for (#48); the service derives
         it from the file name, and the object store rejects anything else. Retried like a request
-        (#567): the same bytes to the same URL cannot make a second object."""
-        return self._request_raw("PUT", url, content=data, headers={"Content-Type": content_type}, timeout=timeout)
+        (#567): the same bytes to the same URL cannot make a second object. A path is streamed from
+        disk with its length, never read into memory, and opened afresh for every attempt (#822)."""
+        if not isinstance(data, (str, os.PathLike)):
+            return self._request_raw("PUT", url, content=data, headers={"Content-Type": content_type}, timeout=timeout)
+        path = os.fspath(data)
+        headers = {"Content-Type": content_type, "Content-Length": str(os.path.getsize(path))}
+        return self._request_raw("PUT", url, content=functools.partial(_path_chunks, path), headers=headers, timeout=timeout)
 
     def _request_raw(self, method: str, url: str, *, timeout: float | None = None, **kwargs: Any) -> httpx.Response:
         """One call whose answer the caller reads itself — the download's redirect, a storage PUT or GET — on the
         retry schedule of `request` (#567): a transport failure, and an answer `raw_backoff` counts as retryable,
-        are sent again. The last answer is returned whatever it is; a redirect is never followed."""
+        are sent again. The last answer is returned whatever it is; a redirect is never followed. A callable `content`
+        is called for each attempt: a streamed body can only be read once (#822)."""
         attempts = max(1, self.max_retries + 1)
+        content = kwargs.pop("content", None)
         for attempt in range(1, attempts + 1):
+            body = content() if callable(content) else content
             try:
-                response = self._http.request(method, url, follow_redirects=False, timeout=timeout or self.timeout, **kwargs)
+                response = self._http.request(method, url, follow_redirects=False, timeout=timeout or self.timeout, content=body, **kwargs)
             except httpx.TransportError:
                 if attempt == attempts:
                     raise
@@ -1089,7 +1125,7 @@ class Assets:
                     if existing.get("status") == "DONE":
                         outcome[n] = {"name": file["name"], "asset": existing}
                         return False
-                data = file["data"] if file["data"] is not None else _read_source(file["source"], None, None)[0]
+                data = file["data"] if file["data"] is not None else file["source"]  # a path is streamed (#822)
                 # The presigned URL is signed for the type the SERVICE picked from the file name (#48); the file's own
                 # type is only the fallback when stage-upload named no type.
                 response = self._client.put_object(stage["url"], data, stage.get("contentType") or file["mime"], timeout)
@@ -1734,16 +1770,24 @@ class AsyncImageStep:
                     raise
                 await asyncio.sleep(self._core.error_backoff(attempt, error))
 
-    async def put_object(self, url: str, data: bytes, content_type: str, timeout: float | None = None) -> httpx.Response:
+    async def put_object(self, url: str, data: bytes | str | os.PathLike[str], content_type: str, timeout: float | None = None) -> httpx.Response:
         """See `ImageStep.put_object`."""
-        return await self._request_raw("PUT", url, content=data, headers={"Content-Type": content_type}, timeout=timeout)
+        if not isinstance(data, (str, os.PathLike)):
+            return await self._request_raw("PUT", url, content=data, headers={"Content-Type": content_type}, timeout=timeout)
+        path = os.fspath(data)
+        headers = {"Content-Type": content_type, "Content-Length": str(os.path.getsize(path))}
+        return await self._request_raw("PUT", url, content=functools.partial(_apath_chunks, path), headers=headers, timeout=timeout)
 
     async def _request_raw(self, method: str, url: str, *, timeout: float | None = None, **kwargs: Any) -> httpx.Response:
         """See `ImageStep._request_raw` — identical semantics, `asyncio.sleep` between retries."""
         attempts = max(1, self.max_retries + 1)
+        content = kwargs.pop("content", None)
         for attempt in range(1, attempts + 1):
+            body = content() if callable(content) else content
             try:
-                response = await self._http.request(method, url, follow_redirects=False, timeout=timeout or self.timeout, **kwargs)
+                response = await self._http.request(
+                    method, url, follow_redirects=False, timeout=timeout or self.timeout, content=body, **kwargs
+                )
             except httpx.TransportError:
                 if attempt == attempts:
                     raise
@@ -2076,7 +2120,7 @@ class AsyncAssets:
                         if existing.get("status") == "DONE":
                             outcome[n] = {"name": file["name"], "asset": existing}
                             return False
-                    data = file["data"] if file["data"] is not None else _read_source(file["source"], None, None)[0]
+                    data = file["data"] if file["data"] is not None else file["source"]  # a path is streamed (#822)
                     response = await self._client.put_object(stage["url"], data, stage.get("contentType") or file["mime"], timeout)
                 if error := _put_error(response, stage["url"]):
                     outcome[n] = {"name": file["name"], "error": error}

@@ -8,6 +8,7 @@ function highlight(text, options) {
 }
 import Table from "cli-table3";
 import * as yaml from "js-yaml";
+import "./logger.js"; // sets chalk's level from NO_COLOR / --no-color (#828), which colourful() reads
 
 // ============================================================================
 // Output Formatting (JSON, YAML, Table)
@@ -40,15 +41,20 @@ function formatOutput(data, format = "json", options = {}) {
 
 // Highlight only on a terminal. A pipe is a program reading the document, and chalk's own detection
 // is not enough: FORCE_COLOR=1 in the environment (CI runners, `pnpm test:full`) colours a pipe too,
-// and `-o json | jq` then fails on the escape codes.
+// and `-o json | jq` then fails on the escape codes. And not when colour is off (NO_COLOR, --no-color,
+// #828): cli-highlight carries its own chalk, which does not know.
+function colourful() {
+  return Boolean(process.stdout.isTTY) && chalk.level > 0;
+}
+
 function printJson(data) {
   const jsonString = JSON.stringify(data, null, 2);
-  console.log(process.stdout.isTTY ? highlight(jsonString, { language: "json", theme: "default" }) : jsonString);
+  console.log(colourful() ? highlight(jsonString, { language: "json", theme: "default" }) : jsonString);
 }
 
 function printYaml(data) {
   const yamlString = yaml.dump(data, { indent: 2 });
-  console.log(process.stdout.isTTY ? highlight(yamlString, { language: "yaml", theme: "default" }) : yamlString);
+  console.log(colourful() ? highlight(yamlString, { language: "yaml", theme: "default" }) : yamlString);
 }
 
 function printTable(data, options = {}) {
@@ -69,7 +75,7 @@ function printTable(data, options = {}) {
     }),
     style: {
       head: [],
-      border: ["grey"]
+      border: chalk.level > 0 ? ["grey"] : []
     },
     wrapOnWordBoundary: false
   });

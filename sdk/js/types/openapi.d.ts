@@ -333,9 +333,10 @@ export interface paths {
          *     LIMITS: at most 20 URLs per call; each body at most 25 MB; redirects are not followed;
          *     the asset count for all URLs is checked before anything is fetched. A response that declares a
          *     type that is not an image (and a URL with no image extension), or a length over the limit, is
-         *     refused before its body is read. The call shares the synchronous endpoints' concurrency: over
-         *     your account's → `429 rate_limited`, the node full → `503 provider_unavailable`; both retryable,
-         *     with `Retry-After`.
+         *     refused before its body is read. Each URL takes one of the synchronous endpoints' concurrency
+         *     slots while it is fetched and gives it back after: over your account's → `429 rate_limited`, the
+         *     node full → `503 provider_unavailable`; both retryable, with `Retry-After`. Refused at the first
+         *     URL, that is the request's answer; at a later one, it is that URL's row (`retryable: true`).
          *
          *     USE THIS WHEN:
          *     - The image is somewhere on the internet and you want an `asset_id` for a job
@@ -3012,7 +3013,7 @@ export interface components {
         };
         /** @description One URL's outcome: an asset (id, status, name, existing) or an error */
         FromUrlResult: {
-            /** @description Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable) */
+            /** @description Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time, or this node was full when its turn came; retryable), `rate_limited` (your account had too many synchronous calls in flight when its turn came; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable) */
             error?: components["schemas"]["ItemError"];
             /** @description true when the bytes were already an asset — a DONE one you held, or the one an earlier URL in this request became — and that asset is returned with nothing new stored. Absent when `error` is set */
             existing?: boolean;

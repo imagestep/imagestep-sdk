@@ -15,11 +15,14 @@ name: Publish
 #
 # Two jobs per registry. The build job runs everything that executes dependency code — install, tests, builds, packs —
 # and holds no credential; it hands the files to upload to the publish job as an artifact. Only the publish job can
-# mint an OIDC token, and it runs nothing but the uploader. GitHub gives every step of a job with `id-token: write` the
-# means to mint one, and npm and PyPI trust this workflow file and its environment rather than a job, so a token minted
-# by a poisoned test dependency in a shared job could publish any of these packages. Splitting the jobs stops that
-# theft; it does not stop a poisoned build backend from changing what is built, which is why the Python build backend
-# is pinned by hash too (`sdk/python/build-constraints.txt`).
+# mint an OIDC token, and it runs nothing but the uploader — on files, never on anything the artifact could make it run:
+# npm publishes a directory as a folder and runs that folder's lifecycle scripts, so the npm job takes from `order.txt`
+# only names of the three packages' tarballs that are regular files, and publishes with `--ignore-scripts` (imagestep#815).
+# GitHub gives every step of a job with `id-token: write` the means to mint one, and npm and PyPI trust this workflow
+# file and its environment rather than a job, so a token minted by a poisoned test dependency in a shared job — or by a
+# script the uploader was tricked into running — could publish any of these packages, npm's or PyPI's. Splitting the
+# jobs stops that theft; it does not stop a poisoned build backend from changing what is built, which is why the Python
+# build backend is pinned by hash too (`sdk/python/build-constraints.txt`).
 
 on:
   push:
@@ -122,11 +125,20 @@ jobs:
         env:
           NPM_CLI: npm@11.19.1
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # `order.txt` was written by the build job, which ran dependency code. Every line is checked before anything
+        # goes out: a pnpm-pack name of one of the three packages, and a regular file (not a directory, not a link).
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/npm"
-          while read -r tarball; do
-            pnpm dlx "$NPM_CLI" publish "$out/$tarball" --provenance --access public
+          name='^imagestep(-mcp|-cli)?-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?\.tgz$'
+          while IFS= read -r tarball; do
+            if ! [[ "$tarball" =~ $name ]] || [ -L "$out/$tarball" ] || [ ! -f "$out/$tarball" ]; then
+              echo "::error::order.txt names something that is not a package tarball: '$tarball' — nothing published"
+              exit 1
+            fi
+          done < "$out/order.txt"
+          while IFS= read -r tarball; do
+            pnpm dlx "$NPM_CLI" publish "$out/$tarball" --provenance --access public --ignore-scripts
             echo "::notice::published $tarball"
           done < "$out/order.txt"
 

@@ -6,6 +6,12 @@ and before 1.0 a minor version may change the interface.
 
 ## Unreleased
 
+### Added
+
+- No colour when `NO_COLOR` is set to anything but an empty string (https://no-color.org), or with the new global
+  `--no-color` option: the log lines, the `-o json` / `-o yaml` highlighting and the table borders. `--no-color` used to
+  fail as an unknown option, and `NO_COLOR` was ignored; only a pipe or `TERM=dumb` turned colour off.
+
 ### Changed
 
 - `models list` reads the API's camelCase model fields and `params` (its Supported params column is the keys of

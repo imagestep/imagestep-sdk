@@ -45,7 +45,7 @@ function addCommonOptions(command) {
   return command
     .option("--out <file>", "Write the result here (single input only)")
     .option("-d, --dir <directory>", "Write results into this directory (one file per input)")
-    .option("--concurrency <n>", "How many files to process at once", "4")
+    .option("--concurrency <n>", "How many files to process at once", "3")
     .option("--no-retry", "Do not retry retryable failures (429 / 503)");
 }
 
@@ -119,7 +119,7 @@ async function runOverFiles(files, options, transform) {
         };
       }
     },
-    Number(options.concurrency) || 4
+    Number(options.concurrency) || 3
   );
 
   const failed = results.filter((r) => !r.ok);
@@ -203,11 +203,11 @@ imageCommand
   .command("metadata <files...>")
   .description("Read EXIF, GPS, dimensions and SHA-1 — free, and nothing is stored")
   .option("-o, --output <format>", "json | yaml | table", "json")
-  .option("--concurrency <n>", "How many files to read at once", "4")
+  .option("--concurrency <n>", "How many files to read at once", "3")
   .option("--no-retry", "Do not retry retryable failures (429 / 503)")
   .action(async (files, options) => {
     try {
-      // Like every other command in this group (#527): four at a time, retried like them, and one unreadable file
+      // Like every other command in this group (#527): three at a time, retried like them, and one unreadable file
       // does not stop the rest — it used to be one after another and the first failure ended the run.
       const results = await executeConcurrently(
         files,
@@ -227,7 +227,7 @@ imageCommand
             };
           }
         },
-        Number(options.concurrency) || 4
+        Number(options.concurrency) || 3
       );
       for (const r of results) {
         if (r.error) {
