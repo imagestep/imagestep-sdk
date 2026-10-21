@@ -49,8 +49,8 @@ is refused as `invalid_param` on `subjects` before anything is charged).
 
 ## Run the n8n template
 
-**On n8n's template library**: not listed yet — the link goes here once it is approved.
-<!-- n8n-template-url: replace the line above with the public https://n8n.io/workflows/<id>-… URL (imagestep#459) -->
+**On n8n's template library**:
+[Create social carousel image sets from Google Sheets with ImageStep](https://n8n.io/workflows/20994-create-social-carousel-image-sets-from-google-sheets-with-imagestep/).
 
 Save the preset once with the script above (or in the console's playground). Then import `n8n-template.json`
 (Workflows → Import from file). The yellow note on the canvas is the same setup in short; the white ones label each
