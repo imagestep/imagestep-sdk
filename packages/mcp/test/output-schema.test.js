@@ -287,28 +287,37 @@ describe("every tool's answer is its outputSchema (#768)", () => {
     expect(new Set(CASES.map(([tool]) => tool)).size).toBe(7);
   });
 
+  // What each mode's answer carries beyond "the schema parses it", keyed `<tool> <mode>` as CASES names them. Checked
+  // inside the case's own `it` below. This used to be one more `it` that re-ran every CASE under `Promise.all` — 25
+  // in-memory MCP round trips on the default 5 s, which timed out on a loaded machine while each case alone is
+  // milliseconds. One case per `it` keeps every test as small as the work it does, so no ceiling has to be raised.
+  const MODES = {
+    "generate timedOut": (answer) => expect(answer.timedOut).toBe(true),
+    "transform job": (answer) => expect(answer).toMatchObject({ outputsTruncated: true, itemsNote: expect.any(String) }),
+    "transform estimate": (answer) => expect(answer.estimate.sufficientCredit).toBe(true),
+    "transform sync, a file": (answer) => expect(answer).toMatchObject({ mode: "sync", path: expect.any(String) }),
+    "transform sync, a signed link": (answer) =>
+      expect(answer).toMatchObject({ mode: "sync", url: expect.any(String), expiresInSeconds: 300 }),
+    "transform read_metadata, a file": (answer) => expect(answer).toMatchObject({ mode: "sync", metadata: { Make: "Canon" } }),
+    "transform read_metadata, assets": (answer) => expect(answer.assets).toHaveLength(2),
+    "transform analyze": (answer) => expect(answer.analyses).toHaveLength(1),
+    "run_preset estimate": (answer) => expect(answer.preset).toMatchObject({ slug: "web-hero" }),
+    "save_preset saved": (answer) => expect(answer.warnings).toHaveLength(1),
+    "job_status a page of items": (answer) => expect(answer.itemsCursor).toBe("items-3"),
+    "search_assets collections": (answer) => expect(answer.collections).toHaveLength(1),
+    "search_assets error": (answer) => expect(answer.error.code).toBe("invalid_param")
+  };
+
   it.each(CASES)("%s (%s): the client accepts the answer and the schema parses it", async (tool, mode, run) => {
     const result = await run();
     expect(result.structuredContent).toBeTruthy();
     expect(Boolean(result.isError), mode).toBe(mode === "error");
+    MODES[`${tool} ${mode}`]?.(result.structuredContent);
   });
 
-  it("covers the modes: a timed-out handle, a truncated job, a dry run, both sync answers, both read_metadata answers", async () => {
-    const answers = Object.fromEntries(
-      await Promise.all(CASES.map(async ([tool, mode, run]) => [`${tool} ${mode}`, (await run()).structuredContent]))
-    );
-    expect(answers["generate timedOut"].timedOut).toBe(true);
-    expect(answers["transform job"]).toMatchObject({ outputsTruncated: true, itemsNote: expect.any(String) });
-    expect(answers["transform estimate"].estimate.sufficientCredit).toBe(true);
-    expect(answers["transform sync, a file"]).toMatchObject({ mode: "sync", path: expect.any(String) });
-    expect(answers["transform sync, a signed link"]).toMatchObject({ mode: "sync", url: expect.any(String), expiresInSeconds: 300 });
-    expect(answers["transform read_metadata, a file"]).toMatchObject({ mode: "sync", metadata: { Make: "Canon" } });
-    expect(answers["transform read_metadata, assets"].assets).toHaveLength(2);
-    expect(answers["transform analyze"].analyses).toHaveLength(1);
-    expect(answers["run_preset estimate"].preset).toMatchObject({ slug: "web-hero" });
-    expect(answers["save_preset saved"].warnings).toHaveLength(1);
-    expect(answers["job_status a page of items"].itemsCursor).toBe("items-3");
-    expect(answers["search_assets collections"].collections).toHaveLength(1);
-    expect(answers["search_assets error"].error.code).toBe("invalid_param");
+  it("covers the modes: a timed-out handle, a truncated job, a dry run, both sync answers, both read_metadata answers", () => {
+    // A renamed case would otherwise drop its mode check and stay green.
+    const cases = new Set(CASES.map(([tool, mode]) => `${tool} ${mode}`));
+    expect(Object.keys(MODES).filter((key) => !cases.has(key))).toEqual([]);
   });
 });

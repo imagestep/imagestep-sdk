@@ -55,7 +55,7 @@
     "cli-highlight": "^2.1.11",
     "cli-table3": "^0.6.5",
     "commander": "^15.0.0",
-    "file-type": "^22.1.1",
+    "file-type": "^22.2.0",
     "imagestep": "workspace:*",
     "js-yaml": "^5.4.3",
     "open": "^11.0.4",
