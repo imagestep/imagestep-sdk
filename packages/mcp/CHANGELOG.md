@@ -4,7 +4,7 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-10-24
 
 ### Added
 
@@ -13,6 +13,9 @@ and before 1.0 a minor version may change the interface.
   every key is optional, since which ones an answer carries depends on the mode (a finished job, a wait that ran out, a
   dry run, a synchronous result, a refusal) — and a value passed through from the API may be `null`. A job's `items[]`
   and `outputs[]` have their own object schemas, the same shape the n8n node's references are held to.
+- `--http` logs one JSON line per request on stdout (imagestep#872): the JSON-RPC method, the tool of a `tools/call`, the
+  `clientInfo` of an `initialize`, the key's 12-character prefix, `keyValid` (from the key check under Security, 3 s
+  timeout, never in the handshake's way), `statusCode` and `durationMs` — never the key, a tool's arguments or a prompt.
 
 ### Fixed
 
@@ -32,6 +35,20 @@ and before 1.0 a minor version may change the interface.
 - `transform`'s parameter line states each op parameter's allowed values and range from the catalogue's own fields —
   `fit(cover|contain|fill|inside|outside=inside)`, `width(integer 1..16384)`. It used to read the values out of the
   description's text, and could not see a range at all.
+- A result saved to disk over stdio goes into a temp folder named `imagestep-mcp-…` (it was `imagestep-…`, a prefix
+  every ImageStep tool shares), so it can be told apart and cleaned up on its own (imagestep#896).
+
+### Security
+
+- `--http` checks a key before calling the API on it (imagestep#882). The API counts failed authentications per source
+  address, and every call a hosted server makes comes from that server's one address, so tool calls with made-up keys —
+  about 60 a minute — locked every user of the server out with a 429, good keys included. A key the server has not seen
+  is now checked once on the public catalogue path, and the answer, valid or not, stands for five minutes (kept as the
+  key's SHA-256, at most 10 000 of each). A key known invalid gets the same `unauthorized` tool error the API gives,
+  without reaching the API; a 401 the API does give is remembered. An address (`CF-Connecting-IP`, an IPv6 one by its
+  /64) whose keys came back invalid 20 times in a minute gets HTTP `429` with `Retry-After` for any key the server has
+  not seen yet; a key it already knows to be good keeps working. The handshake's check (#872) is the same check, so an
+  `initialize` no longer asks about its key every time.
 
 ## 0.1.0 — 2026-10-03
 

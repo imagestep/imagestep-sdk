@@ -1,13 +1,14 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { getMimeType, matchesMimeTypeFilter } from "./asset-utils.js";
+import { RAW_EXTENSION_TO_MIME, getMimeType, matchesMimeTypeFilter } from "./asset-utils.js";
 import { cliFetch } from "./service.js";
 
 /**
  * Get detected MIME type of a file using magic bytes, falling back to the
  * extension-based map for formats file-type can't detect (SVG, plus RAW
- * formats like 3fr, fff, iiq, srw, rwl).
+ * formats like 3fr, fff, iiq, srw, rwl), and naming a TIFF-container RAW
+ * by its extension.
  * @param {string} filePath - Path to the file
  * @returns {Promise<string|null>} Detected MIME type or null if unknown
  */
@@ -16,6 +17,12 @@ export async function getDetectedMimeType(filePath) {
     const { fileTypeFromFile } = await import("file-type"); // on first use, not at every start (#526)
     const fileType = await fileTypeFromFile(filePath);
     if (fileType) {
+      // A TIFF-container RAW (PEF, SRW, NRW …) has a TIFF's magic bytes, so a sniffed image/tiff is only a TIFF when
+      // the name is not a RAW one; any other signature still wins over the name (#878, moana#490).
+      if (fileType.mime === "image/tiff") {
+        const raw = RAW_EXTENSION_TO_MIME[path.extname(filePath).toLowerCase().slice(1)];
+        if (raw) return raw;
+      }
       return fileType.mime;
     }
   } catch {

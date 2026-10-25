@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { describe, expect, it, vi } from "vitest";
@@ -8,11 +9,20 @@ import {
   clearCatalogueCache,
   createServer,
   createServerWithCatalogue,
+  fetchCatalogue,
   FALLBACK_TRANSFORM_OPS,
   OUTPUTS_INLINE,
   typicalDurations
 } from "../src/server.js";
-import { apiKeyFrom, HOSTED_MAX_WAIT_SECONDS, serveHttp } from "../src/http.js";
+import {
+  apiKeyFrom,
+  HOSTED_MAX_WAIT_SECONDS,
+  KEY_VERDICT_MAX,
+  keyGate,
+  serveHttp,
+  VISITOR_FAILURE_LIMIT,
+  visitorBucket
+} from "../src/http.js";
 import { assertPublicUrl, isPrivateAddress } from "../src/safe-url.js";
 
 const ADDRESSES = JSON.parse(readFileSync(new URL("../../../test/fixtures/outbound-addresses.json", import.meta.url), "utf8"));
@@ -1287,6 +1297,498 @@ describe("draining the hosted server (#632)", () => {
     await mcp.callTool({ name: "generate", arguments: { prompt: "a red bicycle", wait_seconds: 120 } });
 
     expect(client.ops.run.mock.calls[0][1].wait.timeoutMs).toBe(120_000);
+  });
+});
+
+/**
+ * #872 — the hosted server's handshake and tools/list left no trace anywhere: no key check, a catalogue cached for every
+ * account, no request log. "Connected in a client, looked at the tools, left" read exactly like "never connected", and
+ * any non-empty string got through the handshake unseen. Now every /mcp message is one JSON line, and an `initialize`
+ * asks the service once, on the side, whether the key is one — which also leaves the service's usage line for the user.
+ */
+describe("the hosted request log (#872)", () => {
+  const KEY = "is_sk_abcdefGHIJKLMNOPQRSTUVWXYZ012345";
+  const OPS = [{ op: "resize", kind: "deterministic", requiresAssets: true }];
+
+  /** A service whose `GET /api/v1/ops` says whether the key is valid, as it does to an in-cluster caller. */
+  function service({ valid = true, keyCheckDelayMs = 0 } = {}) {
+    const opsReads = [];
+    async function fakeFetch(url, init) {
+      const path = new URL(url).pathname;
+      if (path === "/api/v1/ops") {
+        opsReads.push(init.headers.Authorization);
+        // The key check is started first, before the catalogue read (src/http.js), so it is the first read here.
+        if (opsReads.length === 1 && keyCheckDelayMs) await new Promise((r) => setTimeout(r, keyCheckDelayMs));
+        return new Response(JSON.stringify({ success: true, data: OPS }), {
+          status: 200,
+          headers: { "content-type": "application/json", "x-imagestep-key-valid": String(valid) }
+        });
+      }
+      return new Response(JSON.stringify({ success: false, error: { code: "not_found", message: "no such job" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    }
+    return { fakeFetch, opsReads };
+  }
+
+  async function hosted(svc) {
+    clearCatalogueCache();
+    const lines = [];
+    const http = serveHttp({
+      port: 0,
+      host: "127.0.0.1",
+      baseUrl: `https://log${Math.random()}.test`,
+      fetch: svc.fakeFetch,
+      log: (l) => lines.push(l)
+    });
+    await new Promise((r) => (http.listening ? r() : http.once("listening", r)));
+    async function post(body, key = KEY) {
+      const res = await fetch(`http://127.0.0.1:${http.address().port}/mcp`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify(body)
+      });
+      return { status: res.status, body: res.status === 202 ? null : await res.json() };
+    }
+    return { http, lines, post, close: () => new Promise((r) => http.close(r)) };
+  }
+
+  const INITIALIZE = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "mcpspectrum", version: "1.2.0" } }
+  };
+
+  it("writes one line per message: the method and key prefix always, the client on initialize, the tool on tools/call", async () => {
+    const svc = service();
+    const { lines, post, close } = await hosted(svc);
+    try {
+      expect((await post(INITIALIZE)).body.result.serverInfo).toBeTruthy();
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      await post({ jsonrpc: "2.0", method: "notifications/initialized" });
+      await post({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+      await post({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "job_status", arguments: { job_id: "job_SECRETARGUMENT" } }
+      });
+      await vi.waitFor(() => expect(lines).toHaveLength(4));
+
+      expect(lines[0]).toMatchObject({
+        level: "info",
+        msg: "mcp_request",
+        method: "initialize",
+        clientInfo: { name: "mcpspectrum", version: "1.2.0" },
+        keyPrefix: "is_sk_abcdef",
+        keyValid: true,
+        statusCode: 200
+      });
+      expect(lines[0].durationMs).toEqual(expect.any(Number));
+      expect(lines[1]).toMatchObject({ method: "notifications/initialized", keyPrefix: "is_sk_abcdef", statusCode: 202 });
+      expect(lines[2]).toMatchObject({ method: "tools/list", keyPrefix: "is_sk_abcdef", statusCode: 200 });
+      expect(lines[2]).not.toHaveProperty("keyValid");
+      expect(lines[3]).toMatchObject({ method: "tools/call", tool: "job_status", keyPrefix: "is_sk_abcdef", statusCode: 200 });
+
+      const logged = JSON.stringify(lines);
+      expect(logged).not.toContain(KEY);
+      expect(logged).not.toContain("GHIJ");
+      expect(logged).not.toContain("SECRETARGUMENT");
+      expect(logged).not.toContain("arguments");
+      // The key was checked once, on the handshake — the catalogue read plus one; tools/list and tools/call added none.
+      expect(svc.opsReads).toEqual([`ApiKey ${KEY}`, `ApiKey ${KEY}`]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("answers the handshake without waiting for the key check, and writes the line when the check is back", async () => {
+    const svc = service({ keyCheckDelayMs: 400 });
+    const { lines, post, close } = await hosted(svc);
+    try {
+      const t0 = Date.now();
+      const res = await post(INITIALIZE);
+      expect(res.body.result.serverInfo).toBeTruthy();
+      expect(Date.now() - t0).toBeLessThan(350);
+      expect(lines).toHaveLength(0);
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      expect(lines[0]).toMatchObject({ method: "initialize", keyValid: true });
+    } finally {
+      await close();
+    }
+  });
+
+  it("a key the service does not know: the handshake as before, keyValid false, still an info line", async () => {
+    const { lines, post, close } = await hosted(service({ valid: false }));
+    try {
+      expect((await post(INITIALIZE)).body.result.serverInfo).toBeTruthy();
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      expect(lines[0]).toMatchObject({ method: "initialize", keyPrefix: "is_sk_abcdef", keyValid: false, level: "info" });
+    } finally {
+      await close();
+    }
+  });
+
+  it("a string that is not our key's shape: not asked about, nothing of it logged", async () => {
+    const svc = service();
+    const { lines, post, close } = await hosted(svc);
+    try {
+      expect((await post(INITIALIZE, "sk-proj-SOMEONEELSESKEY")).body.result.serverInfo).toBeTruthy();
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      expect(lines[0]).toMatchObject({ method: "initialize", keyPrefix: null, keyValid: false });
+      expect(JSON.stringify(lines)).not.toContain("SOMEONE");
+      expect(svc.opsReads).toHaveLength(1); // the catalogue only
+    } finally {
+      await close();
+    }
+  });
+
+  it("a request with no key is a line too — its 401", async () => {
+    const { http, lines, close } = await hosted(service());
+    try {
+      const res = await fetch(`http://127.0.0.1:${http.address().port}/mcp`, { method: "POST", body: JSON.stringify(INITIALIZE) });
+      expect(res.status).toBe(401);
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      expect(lines[0]).toMatchObject({ method: null, keyPrefix: null, statusCode: 401 });
+    } finally {
+      await close();
+    }
+  });
+});
+
+/**
+ * #882 — the service counts failed authentications per source address, before it looks at the credential, and every
+ * hosted call reaches it from the MCP pod's one address: ~60 tool calls a minute with a made-up key locked every hosted
+ * user out, good keys included. A key is now checked here first, each visitor may turn up only so many bad ones, and a
+ * bad key never reaches the service.
+ */
+describe("a bad key stops at the hosted server (#882)", () => {
+  const OPS = [{ op: "resize", kind: "deterministic", requiresAssets: true }];
+  const GOOD = `is_sk_${"G".repeat(32)}`;
+  const A = "203.0.113.7";
+  const B = "198.51.100.4";
+
+  function badKey() {
+    return `is_sk_${randomBytes(24).toString("base64url")}`;
+  }
+
+  function search(id = 1) {
+    return { jsonrpc: "2.0", id, method: "tools/call", params: { name: "search_assets", arguments: { per_page: 1 } } };
+  }
+
+  const INITIALIZE = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "gate", version: "1" } }
+  };
+
+  /**
+   * The service as an in-cluster caller meets it: `GET /api/v1/ops` (public) says whether the key is valid, the guidelines
+   * are public too, and a keyed read answers a page — or, for a key it does not know, the 401 the auth filter writes.
+   * Every request is recorded: `probes` are the key checks (the catalogue is read before the server starts listening),
+   * `keyed` the keys that reached a keyed path, `headers` everything sent.
+   */
+  function service({ valid = [GOOD], header = true, probeDelayMs = 0, probeFails = false } = {}) {
+    const keys = new Set(valid);
+    const probes = [];
+    const keyed = [];
+    const headers = [];
+    let catalogueRead = false;
+    function json(status, body, extra = {}) {
+      return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...extra } });
+    }
+    async function fakeFetch(url, init) {
+      const sent = new Headers(init?.headers);
+      headers.push(sent);
+      const key = sent.get("authorization")?.replace(/^ApiKey /, "") ?? null;
+      const path = new URL(url).pathname;
+      if (path === "/api/v1/ops") {
+        if (catalogueRead) {
+          probes.push(key);
+          if (probeDelayMs) await new Promise((r) => setTimeout(r, probeDelayMs));
+          if (probeFails) throw new TypeError("fetch failed");
+        }
+        catalogueRead = true;
+        return json(200, { success: true, data: OPS }, header && key ? { "x-imagestep-key-valid": String(keys.has(key)) } : {});
+      }
+      if (path === "/api/v1/agent-guidelines") {
+        return json(200, { success: true, data: { version: 3, updated: "2026-10-01", markdown: "# Rules" } });
+      }
+      keyed.push(key);
+      if (!keys.has(key)) {
+        return json(401, {
+          success: false,
+          timestamp: "2026-10-24T12:00:00Z",
+          error: { code: "unauthorized", message: "Invalid API key", retryable: false }
+        });
+      }
+      return json(200, { success: true, data: [], meta: { hasMore: false, nextCursor: null } });
+    }
+    return { fakeFetch, keys, probes, keyed, headers };
+  }
+
+  async function hosted(svc) {
+    const baseUrl = `https://gate${Math.random()}.test`;
+    // The catalogue is cached for five minutes, so from here on every read of /api/v1/ops is a key check.
+    await fetchCatalogue(new ImageStep({ baseUrl, fetch: svc.fakeFetch }), { baseUrl });
+    const lines = [];
+    const http = serveHttp({ port: 0, host: "127.0.0.1", baseUrl, fetch: svc.fakeFetch, log: (l) => lines.push(l) });
+    await new Promise((r) => (http.listening ? r() : http.once("listening", r)));
+    async function post(body, { key, from } = {}) {
+      const headers = { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "application/json, text/event-stream" };
+      if (from) headers["cf-connecting-ip"] = from;
+      const res = await fetch(`http://127.0.0.1:${http.address().port}/mcp`, { method: "POST", headers, body: JSON.stringify(body) });
+      return { status: res.status, retryAfter: res.headers.get("retry-after"), body: res.status === 202 ? null : await res.json() };
+    }
+    /** Bad keys from `from` until it is over the limit. */
+    async function exhaust(from) {
+      for (let i = 0; i < VISITOR_FAILURE_LIMIT; i++) expect((await post(search(), { key: badKey(), from })).status).toBe(200);
+    }
+    return { lines, post, exhaust, close: () => new Promise((r) => http.close(r)) };
+  }
+
+  it("the ticket's case: past the limit A's new keys are a 429, B's good key works throughout, no bad key reaches the service", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      for (let n = 0; n < 50; n++) {
+        const res = await post(search(), { key: badKey(), from: A });
+        if (n < VISITOR_FAILURE_LIMIT) {
+          expect(res.status).toBe(200);
+          expect(res.body.result.isError).toBe(true);
+          expect(res.body.result.structuredContent.error).toMatchObject({
+            code: "unauthorized",
+            message: "Invalid API key",
+            retryable: false
+          });
+        } else {
+          expect(res.status).toBe(429);
+          expect(Number(res.retryAfter)).toBeGreaterThanOrEqual(1);
+          expect(Number(res.retryAfter)).toBeLessThanOrEqual(60);
+          expect(res.body.error).toMatchObject({ code: "rate_limited", retryable: true });
+        }
+        const good = await post(search(), { key: GOOD, from: B });
+        expect(good.status).toBe(200);
+        expect(good.body.result.isError).toBeFalsy();
+      }
+      // Twenty of A's fifty keys were asked about, and none of them reached a keyed path: nothing charged to this pod.
+      expect(svc.probes.filter((k) => k !== GOOD)).toHaveLength(VISITOR_FAILURE_LIMIT);
+      expect(svc.keyed.filter((k) => k !== GOOD)).toEqual([]);
+      expect(svc.keyed).toHaveLength(50);
+      expect(svc.probes.filter((k) => k === GOOD)).toHaveLength(1);
+      // The visitor's address is the edge's to write and this server's to read — never passed on.
+      expect(svc.headers).toHaveLength(1 + VISITOR_FAILURE_LIMIT + 1 + 50); // the catalogue, the checks, the good calls
+      expect(svc.headers.filter((h) => h.has("cf-connecting-ip"))).toEqual([]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("asks about a key once: the same bad key fifty times is one check and one charge, ten at once share one check", async () => {
+    const svc = service({ probeDelayMs: 50 });
+    const { post, close } = await hosted(svc);
+    try {
+      const key = badKey();
+      for (let i = 0; i < 50; i++) {
+        expect((await post(search(), { key, from: A })).body.result.structuredContent.error.code).toBe("unauthorized");
+      }
+      expect(svc.probes).toEqual([key]);
+      const other = badKey();
+      const all = await Promise.all(Array.from({ length: 10 }, () => post(search(), { key: other, from: B })));
+      expect(all.map((r) => r.body.result.structuredContent.error.code)).toEqual(Array(10).fill("unauthorized"));
+      expect(svc.probes).toEqual([key, other]);
+      expect(svc.keyed).toEqual([]);
+      // A key known bad costs the service nothing and A nothing: its count is still 1, so 19 more unknown keys are asked.
+      for (let i = 1; i < VISITOR_FAILURE_LIMIT; i++) expect((await post(search(), { key: badKey(), from: A })).status).toBe(200);
+      expect((await post(search(), { key: badKey(), from: A })).status).toBe(429);
+    } finally {
+      await close();
+    }
+  });
+
+  it("a batch is one request: fifty tool calls on a bad key are one check and one charge, and none reaches the service", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      const res = await post(
+        Array.from({ length: 50 }, (_, n) => search(n + 1)),
+        { key: badKey(), from: A }
+      );
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(50);
+      expect(res.body.every((r) => r.result.structuredContent.error.code === "unauthorized")).toBe(true);
+      expect(svc.probes).toHaveLength(1);
+      expect(svc.keyed).toEqual([]);
+      for (let i = 1; i < VISITOR_FAILURE_LIMIT; i++) expect((await post(search(), { key: badKey(), from: A })).status).toBe(200);
+      expect((await post(search(), { key: badKey(), from: A })).status).toBe(429);
+    } finally {
+      await close();
+    }
+  });
+
+  it("a visitor over the limit still calls with a key already known good", async () => {
+    const svc = service();
+    const { post, exhaust, close } = await hosted(svc);
+    try {
+      expect((await post(search(), { key: GOOD, from: A })).body.result.isError).toBeFalsy();
+      await exhaust(A);
+      expect((await post(search(), { key: badKey(), from: A })).status).toBe(429);
+      const res = await post(search(), { key: GOOD, from: A });
+      expect(res.status).toBe(200);
+      expect(res.body.result.isError).toBeFalsy();
+      expect(svc.probes.filter((k) => k === GOOD)).toHaveLength(1);
+    } finally {
+      await close();
+    }
+  });
+
+  it("the handshake's check is the same check: cached, counted, and skipped over the limit — the handshake answers either way", async () => {
+    const svc = service();
+    const { lines, post, close } = await hosted(svc);
+    try {
+      // A handshake on a known key asks nothing; a tool call after a handshake on a new key asks nothing more.
+      expect((await post(search(), { key: GOOD, from: B })).status).toBe(200);
+      expect((await post(INITIALIZE, { key: GOOD, from: B })).body.result.serverInfo).toBeTruthy();
+      expect(svc.probes).toEqual([GOOD]);
+
+      // Twenty handshakes on made-up keys are twenty charges, as twenty tool calls are (#872 asked about every one).
+      for (let i = 0; i < VISITOR_FAILURE_LIMIT; i++) expect((await post(INITIALIZE, { key: badKey(), from: A })).status).toBe(200);
+      await vi.waitFor(() => expect(svc.probes).toHaveLength(VISITOR_FAILURE_LIMIT + 1));
+      await vi.waitFor(() => expect((lines.at(-1) ?? {}).keyValid).toBe(false));
+      expect((await post(search(), { key: badKey(), from: A })).status).toBe(429);
+
+      // Over the limit, a handshake and a listing on a new key still answer, unasked: keyValid null.
+      const key = badKey();
+      const init = await post(INITIALIZE, { key, from: A });
+      expect(init.status).toBe(200);
+      expect(init.body.result.serverInfo).toBeTruthy();
+      const list = await post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, { key, from: A });
+      expect(list.status).toBe(200);
+      expect(list.body.result.tools.length).toBeGreaterThan(0);
+      await vi.waitFor(() => expect(lines.filter((l) => l.method === "tools/list")).toHaveLength(1));
+      expect(lines.filter((l) => l.method === "initialize").at(-1)).toMatchObject({ keyValid: null, statusCode: 200 });
+      expect(svc.probes).toHaveLength(VISITOR_FAILURE_LIMIT + 1);
+    } finally {
+      await close();
+    }
+  });
+
+  it("a string that is not our key's shape is not asked about, not charged, and its call fails as before", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      for (const key of ["is_sk_short", "sk-proj-SOMEONEELSESKEY", `is_sk_${"x".repeat(31)}!`, `is_sk_${"x".repeat(33)}`]) {
+        for (let i = 0; i < 10; i++) {
+          const res = await post(search(), { key, from: A });
+          expect(res.body.result.structuredContent.error).toMatchObject({ code: "unauthorized", message: "Invalid API key", status: 401 });
+        }
+      }
+      expect(svc.probes).toEqual([]);
+      expect(svc.keyed).toEqual([]);
+      expect((await post(search(), { key: badKey(), from: A })).status).toBe(200);
+      expect(svc.probes).toHaveLength(1);
+    } finally {
+      await close();
+    }
+  });
+
+  it("a public read answers a key known bad, as it always has", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      const key = badKey();
+      await post(search(), { key, from: A });
+      const res = await post(
+        { jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: "imagestep://agent-guidelines" } },
+        { key, from: A }
+      );
+      expect(res.body.result.contents[0].text).toContain("# Rules");
+      expect(svc.keyed).toEqual([]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("counts an IPv6 visitor by its /64, and a request without the edge's header by its socket address", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      for (let i = 1; i <= VISITOR_FAILURE_LIMIT; i++) {
+        expect((await post(search(), { key: badKey(), from: `2001:db8:1:2::${i.toString(16)}` })).status).toBe(200);
+      }
+      expect((await post(search(), { key: badKey(), from: "2001:db8:1:2:ffff:ffff:ffff:fffe" })).status).toBe(429);
+      expect((await post(search(), { key: badKey(), from: "2001:db8:1:3::1" })).status).toBe(200);
+
+      for (let i = 0; i < VISITOR_FAILURE_LIMIT; i++) expect((await post(search(), { key: badKey() })).status).toBe(200);
+      expect((await post(search(), { key: badKey(), from: "127.0.0.1" })).status).toBe(429);
+      expect((await post(search(), { key: badKey(), from: B })).status).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+
+  it("visitorBucket folds addresses as the service's ClientIp.bucket does", () => {
+    expect(visitorBucket("203.0.113.7")).toBe("203.0.113.7");
+    expect(visitorBucket("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(visitorBucket("::ffff:cb00:7107")).toBe("203.0.113.7");
+    expect(visitorBucket("2001:db8:1:2::a")).toBe("2001:db8:1:2::/64");
+    expect(visitorBucket("2001:0db8:0001:0002:ffff:ffff:ffff:ffff")).toBe("2001:db8:1:2::/64");
+    expect(visitorBucket("[2001:db8::1]")).toBe("2001:db8:0:0::/64");
+    expect(visitorBucket("fe80::1%en0")).toBe("fe80:0:0:0::/64");
+    expect(visitorBucket("64:ff9b::192.0.2.1")).toBe("64:ff9b:0:0::/64");
+  });
+
+  it("holds at most KEY_VERDICT_MAX keys per table, and a flood of bad keys pushes out no good one", { timeout: 60_000 }, async () => {
+    const goods = [GOOD, `is_sk_${"H".repeat(32)}`, `is_sk_${"J".repeat(32)}`];
+    const svc = service({ valid: goods });
+    await svc.fakeFetch("https://flood.test/api/v1/ops", {}); // from here on, every ops read is a check
+    const gate = keyGate({ baseUrl: "https://flood.test", fetch: svc.fakeFetch });
+    for (const key of goods) expect(await gate.verdict(key, { visitor: "192.0.2.1" })).toBe("valid");
+    const bad = Array.from({ length: KEY_VERDICT_MAX + 500 }, badKey);
+    // One visitor per key, so none is over the limit and every key is asked about.
+    for (const [n, key] of bad.entries())
+      expect(await gate.verdict(key, { visitor: `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}` })).toBe("invalid");
+    const asked = svc.probes.length;
+    expect(asked).toBe(goods.length + bad.length);
+    for (const key of goods) expect(await gate.verdict(key, { visitor: "192.0.2.1" })).toBe("valid");
+    for (const key of bad.slice(500)) expect(await gate.verdict(key, { visitor: "192.0.2.2" })).toBe("invalid");
+    expect(svc.probes.length, "the good keys and the newest 10 000 bad ones answer from memory").toBe(asked);
+    expect(await gate.verdict(bad[0], { visitor: "192.0.2.3" })).toBe("invalid");
+    expect(svc.probes.length, "the oldest bad key was pushed out, and is asked about again").toBe(asked + 1);
+  });
+
+  it("a check with no answer — no header, or a failure — is not remembered: the call goes through and the next one asks again", async () => {
+    for (const svc of [service({ header: false }), service({ probeFails: true })]) {
+      const { post, close } = await hosted(svc);
+      try {
+        expect((await post(search(), { key: GOOD, from: A })).body.result.isError).toBeFalsy();
+        expect((await post(search(), { key: GOOD, from: A })).body.result.isError).toBeFalsy();
+        expect(svc.probes).toEqual([GOOD, GOOD]);
+        expect(svc.keyed).toEqual([GOOD, GOOD]);
+      } finally {
+        await close();
+      }
+    }
+  });
+
+  it("a 401 from the service is remembered: the next call on that key stops here, with the same error the service gave", async () => {
+    const svc = service();
+    const { post, close } = await hosted(svc);
+    try {
+      expect((await post(search(), { key: GOOD, from: A })).body.result.isError).toBeFalsy();
+      svc.keys.delete(GOOD); // revoked after the check
+      const fromService = await post(search(), { key: GOOD, from: A });
+      const fromHere = await post(search(), { key: GOOD, from: A });
+      expect(fromService.body.result.structuredContent.error).toMatchObject({ code: "unauthorized", status: 401 });
+      expect(fromHere.body.result).toEqual(fromService.body.result);
+      expect(svc.keyed).toEqual([GOOD, GOOD]);
+      expect(svc.probes).toEqual([GOOD]);
+    } finally {
+      await close();
+    }
   });
 });
 

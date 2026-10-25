@@ -1,6 +1,6 @@
 {
   "name": "imagestep-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "ImageStep CLI — run image ops and presets from the terminal: discover and price ops, submit and wait on jobs, manage assets, templates and webhooks, read usage",
   "type": "module",
   "main": "src/index.js",
@@ -59,7 +59,7 @@
     "imagestep": "workspace:*",
     "js-yaml": "^5.4.3",
     "open": "^11.0.4",
-    "undici": "^8.12.1"
+    "undici": "^8.12.2"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.4",

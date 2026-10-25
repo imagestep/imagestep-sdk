@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "vitest";
+import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,7 @@ import { getDetectedMimeType, validateFileForUpload } from "../src/utils/file-ut
  * uploaded and being silently filtered out by their own `--mime-type` flag.
  */
 const dir = mkdtempSync(join(tmpdir(), "imagestep-cli-test-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true })); // #880
 
 function file(name, bytes) {
   const path = join(dir, name);
@@ -71,6 +72,51 @@ describe("detection prefers magic bytes over the extension", () => {
     // octet-stream would make an unknown file look like a known one.
     const unknown = file("mystery.tar.zst", Buffer.from("hello"));
     expect(await getDetectedMimeType(unknown)).toBeNull();
+  });
+});
+
+describe("a TIFF-container RAW is named by its extension (#878)", () => {
+  // PEF, SRW, NRW … start with a TIFF's `II*\0`, so file-type says image/tiff and the extension map never got a turn:
+  // `--mime-type pef` skipped every PEF and `--mime-type tiff` took them in (moana#490 is the same hole).
+  function tiffHeader(name) {
+    const bytes = Buffer.alloc(64);
+    bytes.write("II*\0", 0, "latin1");
+    bytes.writeUInt32LE(8, 4); // IFD0 right after the header, no entries
+    return file(name, bytes);
+  }
+
+  it("says the RAW type, so --mime-type <raw> takes it and --mime-type tiff does not", async () => {
+    for (const [name, mime] of [
+      ["shot.pef", "image/x-pentax-pef"],
+      ["SHOT.SRW", "image/x-samsung-srw"],
+      ["shot.nrw", "image/x-nikon-nrw"]
+    ]) {
+      const raw = tiffHeader(name);
+      expect(await getDetectedMimeType(raw)).toBe(mime);
+      const ext = name.split(".").pop().toLowerCase();
+      expect((await validateFileForUpload(raw, normalizeMimeTypeFilter([ext]))).valid).toBe(true);
+      expect((await validateFileForUpload(raw, normalizeMimeTypeFilter(["tiff"]))).valid).toBe(false);
+    }
+  });
+
+  it("leaves a .tif with the same bytes a TIFF — the positive control that the header sniffs as one", async () => {
+    expect(await getDetectedMimeType(tiffHeader("scan.tif"))).toBe("image/tiff");
+  });
+
+  it("keeps magic bytes first for any other signature: a WebP named .pef is a WebP", async () => {
+    const renamed = join(dir, "renamed.pef");
+    copyFileSync(fileURLToPath(new URL("./fixtures/sample.webp", import.meta.url)), renamed);
+    expect(await getDetectedMimeType(renamed)).toBe("image/webp");
+  });
+
+  // The real files, where the shared test-files library is built beside this repo or TEST_FILES_DIR names it (not in CI).
+  const LIBRARY = process.env.TEST_FILES_DIR || fileURLToPath(new URL("../../../../test-files/library", import.meta.url));
+  const RAW_DIR = join(LIBRARY, "image", "01-formats", "raw");
+  it.skipIf(!existsSync(RAW_DIR))("names the real PEF, SRW and NRW in test-files", async () => {
+    expect(await getDetectedMimeType(join(RAW_DIR, "pentax-k10d.pef"))).toBe("image/x-pentax-pef");
+    expect(await getDetectedMimeType(join(RAW_DIR, "samsung-nx500.srw"))).toBe("image/x-samsung-srw");
+    expect(await getDetectedMimeType(join(RAW_DIR, "nikon-coolpix-p7800.nrw"))).toBe("image/x-nikon-nrw");
+    expect(await getDetectedMimeType(join(RAW_DIR, "..", "standard", "multipage.tif"))).toBe("image/tiff");
   });
 });
 

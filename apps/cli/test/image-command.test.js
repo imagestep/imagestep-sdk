@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { describe, expect, it, vi, beforeEach, afterEach, onTestFinished } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -117,6 +117,7 @@ describe("imagestep image", () => {
   // #268: one row of data through a template, bytes back, nothing stored.
   it("render POSTs {templateId, data} as JSON to /api/v1/images/render and writes the PNG", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-render-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     serve();
     const { imageCommand } = await import("../src/commands/image.js");
 
@@ -149,6 +150,7 @@ describe("imagestep image", () => {
   // detector `asset upload` asks, so the two can never disagree about the same file.
   it("sends the Content-Type `asset upload` would, for RAW and SVG alike", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-image-mime-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const cr2 = join(dir, "IMG_0001.CR2");
     const svg = join(dir, "logo.svg");
     writeFileSync(cr2, Buffer.from("not a real frame, so detection falls back to the extension"));
@@ -179,6 +181,7 @@ describe("imagestep image", () => {
   // that names the input writes over it.
   it("never writes a result over its own input unless --out names it", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-image-inplace-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
     const files = ["a.png", "b.png", "c.png"].map((name) => {
       const path = join(dir, name);
@@ -211,6 +214,7 @@ describe("imagestep image", () => {
   // the balance is topped up (#589: the link the refusal carries).
   it("sends a file that hears insufficient_credit once, does not send the files after it, and names the top-up page", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-image-quota-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const files = ["a.png", "b.png", "c.png"].map((name) => {
       const path = join(dir, name);
       writeFileSync(path, Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"));
@@ -251,6 +255,7 @@ describe("imagestep image", () => {
   // The batch exits with the lowest of its failures' codes: 4 only when every failure was transient.
   it("exits 4 when every failed file failed transiently, 3 when the service refused one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-image-exit-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const files = ["a.png", "b.png"].map((name) => {
       const path = join(dir, name);
       writeFileSync(path, Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"));

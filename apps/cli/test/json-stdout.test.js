@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,7 +48,8 @@ const routes = {
 };
 
 // A 1×1 PNG, so `image metadata` detects a format and sends the file.
-const png = join(mkdtempSync(join(tmpdir(), "imagestep-json-stdout-")), "one.png");
+const pngDir = mkdtempSync(join(tmpdir(), "imagestep-json-stdout-"));
+const png = join(pngDir, "one.png");
 writeFileSync(
   png,
   Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAwS2OUAAAAABJRU5ErkJggg==", "base64")
@@ -66,6 +67,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  rmSync(pngDir, { recursive: true, force: true }); // #880
   server.closeAllConnections();
   return new Promise((resolve) => server.close(resolve));
 });

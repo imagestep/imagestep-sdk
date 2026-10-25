@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { ImageStep, ImageStepError, JobFailedError, verifyWebhookSignature, constructWebhookEvent } from "../src/index.js";
 
@@ -1038,12 +1038,14 @@ describe("stream bodies on a real socket (#528)", () => {
   });
 
   it("upload(path) hashes the file as a stream and PUTs it as a stream, with the exact length", async () => {
-    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const { createHash } = await import("node:crypto");
     const bytes = Buffer.alloc(3 * 1024 * 1024 + 17, 5);
-    const path = join(mkdtempSync(join(tmpdir(), "imagestep-sdk-")), "big.png");
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-sdk-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #896
+    const path = join(dir, "big.png");
     writeFileSync(path, bytes);
     const seen = {};
     const { base, close } = await serve((req, body, res) => {
@@ -1084,6 +1086,7 @@ describe("stream bodies on a real socket (#528)", () => {
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "imagestep-sdk-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #896: the test removes it too, unless it fails first
     const path = join(dir, "photo.jpg");
     writeFileSync(path, Buffer.alloc(64, 1));
     const answers = {

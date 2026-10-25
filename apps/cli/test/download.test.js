@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -74,6 +74,7 @@ beforeEach(() => {
 describe("downloadAsset", () => {
   it("streams to a temporary name and renames it when whole", async () => {
     const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const { target, bytes } = await downloadAsset("ast_1", { dir });
     expect(target).toBe(join(dir, "ast_1.png"));
     expect(bytes).toBe(payload.length);
@@ -90,6 +91,7 @@ describe("downloadAsset", () => {
       else res.end(payload);
     };
     const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const { target } = await downloadAsset("ast_2", { dir });
     expect(state.storageHits).toBe(2);
     expect(readFileSync(target).equals(payload)).toBe(true);
@@ -100,6 +102,7 @@ describe("downloadAsset", () => {
       res.write(payload.subarray(0, 1024));
     };
     const empty = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    onTestFinished(() => rmSync(empty, { recursive: true, force: true })); // #880
     await expect(downloadAsset("ast_3", { dir: empty })).rejects.toThrow(/stalled/);
     expect(readdirSync(empty)).toEqual([]);
   });
@@ -116,6 +119,7 @@ describe("jobs outputs --download", () => {
       }, 30);
     };
     const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     vi.spyOn(console, "log").mockImplementation(() => {});
     const { default: jobsCommand } = await import("../src/commands/jobs.js");
     await jobsCommand.parseAsync(["outputs", "j1", "--download", dir, "--concurrency", "2", "-o", "json"], { from: "user" });

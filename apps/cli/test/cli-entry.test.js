@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { execFile } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -65,10 +65,12 @@ describe("the catalogue fetch at startup", () => {
       res.end(JSON.stringify({ success: true, data: [{ op: "resize", syncEndpoint: "POST /api/v1/images/transform", params: {} }] }));
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const home = mkdtempSync(join(tmpdir(), "imagestep-home-"));
+    onTestFinished(() => rmSync(home, { recursive: true, force: true })); // #880
     try {
       const env = {
         ...process.env,
-        HOME: mkdtempSync(join(tmpdir(), "imagestep-home-")),
+        HOME: home,
         IMAGESTEP_BASE_URL: `http://127.0.0.1:${server.address().port}`
       };
       const { stdout } = await run(process.execPath, [bin, "image", "-h"], { env });

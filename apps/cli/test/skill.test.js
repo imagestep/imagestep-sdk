@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { SKILL_NAME, skillText } from "../src/commands/skill.js";
 import { buildProgram } from "../src/program.js";
 
@@ -117,6 +117,7 @@ describe("imagestep skill", () => {
 
   it("--install claude-code writes ~/.claude/skills/<name>/SKILL.md and nothing else", async () => {
     const home = mkdtempSync(join(tmpdir(), "imagestep-skill-"));
+    onTestFinished(() => rmSync(home, { recursive: true, force: true })); // #880
     const { stderr } = await run(process.execPath, [bin, "skill", "--install", "claude-code"], { env: { ...process.env, HOME: home } });
     const installed = join(home, ".claude", "skills", SKILL_NAME, "SKILL.md");
     expect(readFileSync(installed, "utf8")).toBe(skillText());

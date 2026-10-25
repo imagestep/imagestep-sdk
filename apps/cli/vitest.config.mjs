@@ -4,6 +4,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/**/*.test.js"],
+    // Sweeps what killed runs left in the temp folder; each test removes its own (#880).
+    globalSetup: ["./test/global-setup.js"],
     environment: "node",
     globals: true,
     coverage: {

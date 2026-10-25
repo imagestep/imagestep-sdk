@@ -130,9 +130,14 @@ describe("--http on SIGTERM, with a call waiting for its job (#632)", () => {
   it("answers that call with the job handle, timedOut, within a second — then exits 0", { timeout: 40_000 }, async () => {
     const api = await slowJobApi();
     const server = await start(api.baseUrl);
+    // A key of the service's shape: a malformed one is turned down before it reaches the API (#882).
     const call = fetch(`http://127.0.0.1:${server.port}/mcp`, {
       method: "POST",
-      headers: { authorization: "Bearer is_sk_t", "content-type": "application/json", accept: "application/json, text/event-stream" },
+      headers: {
+        authorization: `Bearer is_sk_${"t".repeat(32)}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream"
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,

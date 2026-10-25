@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,6 +28,7 @@ describe("~/.imagestep is private (#479)", () => {
   afterEach(() => {
     process.env.HOME = HOME;
     vi.restoreAllMocks();
+    rmSync(home, { recursive: true, force: true }); // #880
   });
 
   const mode = (path) => statSync(path).mode & 0o777;

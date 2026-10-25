@@ -132,7 +132,16 @@ claude mcp add --transport http imagestep https://mcp.imagestep.dev/mcp --header
 
 The remote server is stateless: each request is served by a fresh server bound to the API key in
 the `Authorization` header (`Bearer` or `ApiKey`). `file_paths` is disabled there; pass `urls` or
-`asset_ids`.
+`asset_ids`. It logs one JSON line per request on stdout: the JSON-RPC method, the tool name of a
+`tools/call`, the `clientInfo` an `initialize` reports, your key's prefix (the 12 characters the
+console shows — never the key), whether the key is valid, the HTTP status and the duration. Never a
+tool's arguments or your prompt. The validity comes from a side request to the API (3 s timeout,
+not counted as a use of the key), and the answer, valid or not, stands for five minutes. The
+handshake never waits for it. A request that can call the API on your key (a tool call, a resource
+read) does, when the server has not seen that key yet, so a wrong key is turned down there with the
+same `unauthorized` error the API gives and never reaches the API. An address whose keys turned out
+invalid 20 times in a minute gets HTTP `429` with `Retry-After` for any key the server has not seen
+yet, until the minute is up; a key it already knows to be good keeps working.
 
 **The remote server waits at most 90 s per tool call** (`wait_seconds` above that is clamped; the
 default there is 90). It answers each call as one JSON body, so nothing reaches your client until the

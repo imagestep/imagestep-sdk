@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 /**
  * imagestep#264 — `IMAGESTEP_API_KEY` / `IMAGESTEP_BASE_URL`, the names and the precedence the SDKs
@@ -15,6 +15,7 @@ let out;
 
 function home(tokens) {
   const dir = mkdtempSync(join(tmpdir(), "imagestep-cli-env-"));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
   if (tokens) {
     mkdirSync(join(dir, ".imagestep"));
     const lines = Object.entries(tokens).map(([env, token]) => `  ${env}: ${token}`);

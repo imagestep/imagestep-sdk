@@ -532,7 +532,9 @@ let scratch;
  * It used to be one `mkdtemp` per call and nothing ever removed them, so a long-lived stdio server
  * left a directory behind for every image an agent touched (#95). `exit` covers the ordinary end of
  * a stdio server (the client closes stdin); a killed process leaves the directory to the OS's own
- * temp sweep, which is what that sweep is for.
+ * temp sweep, which is what that sweep is for. Named for this package (#896): `imagestep-` alone was every tool's
+ * prefix. A vitest worker never fires `exit` per test file, so the tests point TMPDIR at a folder of their own
+ * (test/setup.js).
  */
 async function scratchDir() {
   if (!scratch) {
@@ -540,7 +542,7 @@ async function scratchDir() {
     const { rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    scratch = await mkdtemp(join(tmpdir(), "imagestep-"));
+    scratch = await mkdtemp(join(tmpdir(), "imagestep-mcp-"));
     process.once("exit", () => {
       try {
         rmSync(scratch, { recursive: true, force: true });
@@ -734,9 +736,10 @@ const urlsSchema = z.array(z.url()).max(100).optional().describe("Public http(s)
 /**
  * The one place a client is constructed, so both entry points below build the same one. It names this server in its
  * User-Agent (imagestep#722) — `imagestep-mcp/<version>`, with the transport in the comment when the caller says
- * (`stdio` from bin/, `hosted` from src/http.js) — so the service's log tells it from a script on the JS SDK.
+ * (`stdio` from bin/, `hosted` from src/http.js) — so the service's log tells it from a script on the JS SDK. Exported for
+ * src/http.js's handshake key check (imagestep#872), which has to read as this same client.
  */
-function clientFor(options) {
+export function clientFor(options) {
   const userAgent = `imagestep-mcp/${version}${options.transport ? ` (${options.transport})` : ""}`;
   return options.client || new ImageStep({ apiKey: options.apiKey, baseUrl: options.baseUrl, fetch: options.fetch, userAgent });
 }

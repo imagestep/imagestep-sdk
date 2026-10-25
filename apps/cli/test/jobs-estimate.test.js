@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { rmSync, writeFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 /**
  * imagestep#210 — `imagestep jobs estimate` posted to `/api/v1/jobs/estimate`, a route the service has
@@ -148,7 +148,9 @@ describe("variants, templates and rows (#266)", () => {
       { title: "Hi", site: "imagestep.dev" },
       { title: "Bye", site: "imagestep.dev" }
     ];
-    const file = join(mkdtempSync(join(tmpdir(), "imagestep-rows-")), "rows.json");
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-rows-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
+    const file = join(dir, "rows.json");
     writeFileSync(file, JSON.stringify(rows));
 
     const { url, body } = await run("submit", "--op", "render_template", "--template-id", "builtin-template-og-image@1", "--items", file);

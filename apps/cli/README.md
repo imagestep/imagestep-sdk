@@ -125,7 +125,8 @@ Behaviours to know:
   and fails, and the files not yet sent are not sent — each would be transformed, counted and thrown away the same way.
   The check compares the files, not their spelling (`IMG_1.JPG` and `IMG_1.jpg` on a case-insensitive disk are one).
 - **The input's Content-Type is detected the way `asset upload` detects it**: magic bytes first,
-  then that table for what has no signature (RAW, SVG). A file neither can name is refused before
+  then that table for what has no signature (RAW, SVG); a TIFF signature on a RAW name (PEF, SRW, NRW … are TIFF
+  containers) is that RAW (#878). A file neither can name is refused before
   any bytes are sent — the service reads the format from that header and would 400 an
   `application/octet-stream` anyway. To change formats use `convert`, or save a two-step preset for `run`.
 

@@ -1,29 +1,8 @@
 import path from "path";
 
-// Comprehensive extension to MIME type mapping
-const EXTENSION_TO_MIME = {
-  // Standard images
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  bmp: "image/bmp",
-  avif: "image/avif",
-  tiff: "image/tiff",
-  tif: "image/tiff",
-  jxl: "image/jxl",
-  jp2: "image/jp2",
-  j2k: "image/jp2",
-  psd: "image/vnd.adobe.photoshop",
-  ico: "image/vnd.microsoft.icon",
-  // HEIF/HEIC formats
-  heic: "image/heic",
-  heif: "image/heif",
-  heics: "image/heic-sequence",
-  heifs: "image/heif-sequence",
-  // RAW camera formats
+// RAW camera formats. Several are TIFF containers (PEF, SRW, NRW, SR2, SRF, KDC, 3FR, FFF, an old ARW or NEF)
+// whose magic bytes say image/tiff — getDetectedMimeType reads this table to tell them from a TIFF (#878).
+export const RAW_EXTENSION_TO_MIME = {
   cr2: "image/x-canon-cr2",
   cr3: "image/x-canon-cr3",
   crw: "image/x-canon-crw",
@@ -48,7 +27,33 @@ const EXTENSION_TO_MIME = {
   k25: "image/x-kodak-k25",
   kdc: "image/x-kodak-kdc",
   x3f: "image/x-sigma-x3f",
-  rwl: "image/x-leica-rwl",
+  rwl: "image/x-leica-rwl"
+};
+
+// Comprehensive extension to MIME type mapping
+const EXTENSION_TO_MIME = {
+  // Standard images
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  bmp: "image/bmp",
+  avif: "image/avif",
+  tiff: "image/tiff",
+  tif: "image/tiff",
+  jxl: "image/jxl",
+  jp2: "image/jp2",
+  j2k: "image/jp2",
+  psd: "image/vnd.adobe.photoshop",
+  ico: "image/vnd.microsoft.icon",
+  // HEIF/HEIC formats
+  heic: "image/heic",
+  heif: "image/heif",
+  heics: "image/heic-sequence",
+  heifs: "image/heif-sequence",
+  ...RAW_EXTENSION_TO_MIME,
   // Videos
   mp4: "video/mp4",
   webm: "video/webm",

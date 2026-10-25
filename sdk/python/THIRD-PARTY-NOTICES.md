@@ -160,7 +160,7 @@ bundles nothing, so npm fetches each of these because our manifest asks for it.
 | [file-type](https://github.com/sindresorhus/file-type)         | 22.2.0  | MIT — © Sindre Sorhus                          |
 | [js-yaml](https://github.com/nodeca/js-yaml)                   | 5.4.3   | MIT — © 2011-2015 Vitaly Puzrin                |
 | [open](https://github.com/sindresorhus/open)                   | 11.0.4  | MIT — © Sindre Sorhus                          |
-| [undici](https://github.com/nodejs/undici)                     | 8.12.1  | MIT — © Matteo Collina and Undici contributors |
+| [undici](https://github.com/nodejs/undici)                     | 8.12.2  | MIT — © Matteo Collina and Undici contributors |
 
 Seven MIT rows; the body is §5.3, quoted once, and each row's copyright line is
 its own.

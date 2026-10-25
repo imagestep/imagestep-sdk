@@ -1,8 +1,8 @@
 import http from "node:http";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
 /**
  * imagestep#48 — the presigned PUT is signed for a Content-Type the SERVICE derives from the file name, and for the
@@ -52,7 +52,9 @@ describe("the presigned PUT", () => {
   it("sends stage-upload's Content-Type, not the detected one, and the file's byte count", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal("fetch", stubbed);
-    const path = join(mkdtempSync(join(tmpdir(), "imagestep-put-")), "a.png");
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-put-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
+    const path = join(dir, "a.png");
     writeFileSync(path, Buffer.alloc(1234));
 
     const { results } = await uploadInChunks([{ path, name: "a.png", size: 1234, hash: "h", mimeType: "image/png" }], 1);
