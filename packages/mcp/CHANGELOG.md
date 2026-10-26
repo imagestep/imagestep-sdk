@@ -4,6 +4,14 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
+## 0.2.1 — 2026-10-26
+
+### Fixed
+
+- A one-image `transform` that runs synchronously and is refused for its input now names the input to fix as this
+  tool calls it: `param` is `urls` or `file_paths`, where it used to be the API endpoint's own field (`url`, `file`),
+  which no tool takes.
+
 ## 0.2.0 — 2026-10-24
 
 ### Added

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { ImageStepError } from "imagestep";
 import { describe, expect, it, vi } from "vitest";
 
 import { createServer } from "../src/server.js";
@@ -132,6 +133,28 @@ describe("transform: the synchronous fast path", () => {
     expect(res.structuredContent.error.message).toMatch(/private address/);
     expect(client.images.transformResult).not.toHaveBeenCalled();
     expect(client.ops.run).not.toHaveBeenCalled();
+  });
+
+  it("names the tool's input, not the endpoint's field, when the service refuses a sync input (#907)", async () => {
+    // The endpoint calls its inputs `url` and `file`; the agent sent `urls` / `file_paths`, and `param` is the input to fix.
+    for (const [field, args, expected] of [
+      ["url", { urls: ["https://example.com/missing.jpg"] }, "urls"],
+      ["file", { file_paths: ["/tmp/a.png"] }, "file_paths"]
+    ]) {
+      const client = fakeClient();
+      client.images.transformResult = vi.fn(async () => {
+        throw new ImageStepError({
+          status: 400,
+          code: "invalid_param",
+          message: "Could not fetch that URL",
+          retryable: false,
+          param: field
+        });
+      });
+      const res = await callTransform(client, { op: "resize", ...args, wait: true });
+      expect(res.isError).toBe(true);
+      expect(res.structuredContent.error).toMatchObject({ code: "invalid_param", param: expected, retryable: false });
+    }
   });
 
   it("names the result file for what it is, and says so in the answer", async () => {

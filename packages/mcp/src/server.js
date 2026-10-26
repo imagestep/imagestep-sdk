@@ -567,6 +567,9 @@ function ok(payload) {
  */
 const NOT_OP_PARAMETERS = ["file", "url", "urls", "assetId", "assetIds", "preset", "response", "signal", "op"];
 
+/** The synchronous endpoint's input fields → the tool inputs they came from (imagestep#907). */
+const SYNC_INPUT_PARAMS = { url: "urls", file: "file_paths" };
+
 function assertOpParameters(parameters, param) {
   const key = Object.keys(parameters || {}).find((k) => NOT_OP_PARAMETERS.includes(k));
   if (key)
@@ -912,11 +915,19 @@ export function createServer(options) {
     const wantsUrl = !allowLocalFiles;
     // The caller's parameters travel in their own slot and can name nothing but an op parameter (#470): spread over
     // `input`, a `file` among them was a path on THIS host that the SDK read, before any key was checked.
-    const result = await client.images.transformResult(op, {
-      ...input,
-      parameters: parameters || {},
-      ...(wantsUrl ? { response: "url" } : {})
-    });
+    let result;
+    try {
+      result = await client.images.transformResult(op, {
+        ...input,
+        parameters: parameters || {},
+        ...(wantsUrl ? { response: "url" } : {})
+      });
+    } catch (err) {
+      // The synchronous endpoint names its own fields, `url` and `file`; the input the agent has to fix is this tool's
+      // `urls` or `file_paths` (imagestep#907).
+      if (err instanceof ImageStepError && SYNC_INPUT_PARAMS[err.param]) err.param = SYNC_INPUT_PARAMS[err.param];
+      throw err;
+    }
 
     const common = { mode: "sync", op, durationMs: Date.now() - started, stored: false };
 

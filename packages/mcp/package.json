@@ -1,7 +1,7 @@
 {
   "name": "@imagestep/mcp",
   "mcpName": "dev.imagestep/mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "ImageStep MCP server — the image pipeline for agents: presets, assets and jobs as seven tools (generate · transform · run_preset · save_preset · job_status · search_assets · send_feedback). Runs locally over stdio (npx) or remotely over Streamable HTTP.",
   "license": "MIT",
   "type": "module",
