@@ -38,9 +38,9 @@ dependency that never reaches the browser belongs in §4, not here.
 | ---------------------------------------------------------------- | ------- | ------------------------------------------------- |
 | [react](https://github.com/facebook/react)                       | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
 | [react-dom](https://github.com/facebook/react)                   | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
-| [next](https://github.com/vercel/next.js)                        | 16.4.1  | MIT — © 2025 Vercel, Inc.                         |
+| [next](https://github.com/vercel/next.js)                        | 16.4.2  | MIT — © 2025 Vercel, Inc.                         |
 | [radix-ui](https://github.com/radix-ui/primitives)               | 1.8.1   | MIT — © 2022 WorkOS                               |
-| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.57.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
+| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.60.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
 | [class-variance-authority](https://github.com/joe-bell/cva)      | 0.7.1   | Apache-2.0 — §5.2                                 |
 | [clsx](https://github.com/lukeed/clsx)                           | 2.1.1   | MIT — © Luke Edwards                              |
 | [tailwind-merge](https://github.com/dcastil/tailwind-merge)      | 3.7.0   | MIT — © 2021 Dany Castillo                        |
@@ -58,7 +58,7 @@ libraries those pages stand on are served from this origin too:
 | Package                                                               | Version | Licence                                |
 | --------------------------------------------------------------------- | ------- | -------------------------------------- |
 | [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.90.0  | MIT — © 2019-present Beier(Bill) Luo   |
-| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 5.9.1   | MIT — © 2019-present Beier(Bill) Luo   |
+| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 6.0.0   | MIT — © 2019-present Beier(Bill) Luo   |
 | [zod](https://github.com/colinhacks/zod)                              | 4.6.7   | MIT — © 2025 Colin McDonnell           |
 | [date-fns](https://github.com/date-fns/date-fns)                      | 4.4.0   | MIT — © 2021 Sasha Koss and Lesha Koss |
 
@@ -158,9 +158,9 @@ bundles nothing, so npm fetches each of these because our manifest asks for it.
 | [cli-table3](https://github.com/cli-table/cli-table3)          | 0.6.5   | MIT — © 2014 James Talmage                     |
 | [commander](https://github.com/tj/commander.js)                | 15.0.0  | MIT — © 2011 TJ Holowaychuk                    |
 | [file-type](https://github.com/sindresorhus/file-type)         | 22.2.0  | MIT — © Sindre Sorhus                          |
-| [js-yaml](https://github.com/nodeca/js-yaml)                   | 5.4.3   | MIT — © 2011-2015 Vitaly Puzrin                |
+| [js-yaml](https://github.com/nodeca/js-yaml)                   | 5.5.0   | MIT — © 2011-2015 Vitaly Puzrin                |
 | [open](https://github.com/sindresorhus/open)                   | 11.0.4  | MIT — © Sindre Sorhus                          |
-| [undici](https://github.com/nodejs/undici)                     | 8.12.2  | MIT — © Matteo Collina and Undici contributors |
+| [undici](https://github.com/nodejs/undici)                     | 8.12.3  | MIT — © Matteo Collina and Undici contributors |
 
 Seven MIT rows; the body is §5.3, quoted once, and each row's copyright line is
 its own.

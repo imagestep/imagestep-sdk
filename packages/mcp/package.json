@@ -33,9 +33,9 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.134.0",
-    "@vitest/coverage-v8": "^5.0.4",
-    "vitest": "^5.0.4"
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "vitest": "^5.0.5"
   },
   "repository": {
     "type": "git",
