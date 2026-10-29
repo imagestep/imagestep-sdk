@@ -22,7 +22,7 @@ describe("~/.imagestep is private (#479)", () => {
   let home;
   beforeEach(() => {
     vi.resetModules();
-    home = mkdtempSync(join(tmpdir(), "imagestep-cli-perm-"));
+    home = mkdtempSync(join(tmpdir(), "imagestep-test-cli-perm-"));
     process.env.HOME = home;
   });
   afterEach(() => {

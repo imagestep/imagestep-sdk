@@ -65,7 +65,7 @@ describe("the catalogue fetch at startup", () => {
       res.end(JSON.stringify({ success: true, data: [{ op: "resize", syncEndpoint: "POST /api/v1/images/transform", params: {} }] }));
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const home = mkdtempSync(join(tmpdir(), "imagestep-home-"));
+    const home = mkdtempSync(join(tmpdir(), "imagestep-test-home-"));
     onTestFinished(() => rmSync(home, { recursive: true, force: true })); // #880
     try {
       const env = {

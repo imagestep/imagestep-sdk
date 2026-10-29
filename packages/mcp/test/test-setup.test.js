@@ -8,7 +8,7 @@ import { expect, test } from "vitest";
 const atLoad = process.env.TMPDIR;
 
 test("setup.js makes nothing while a test file loads", () => {
-  expect(basename(atLoad ?? "")).not.toMatch(/^imagestep-mcp-test-/);
-  expect(basename(process.env.TMPDIR)).toMatch(/^imagestep-mcp-test-/);
+  expect(basename(atLoad ?? "")).not.toMatch(/^imagestep-test-mcp-/);
+  expect(basename(process.env.TMPDIR)).toMatch(/^imagestep-test-mcp-/);
   expect(existsSync(process.env.TMPDIR)).toBe(true);
 });

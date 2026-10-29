@@ -14,7 +14,7 @@ const saved = { HOME: process.env.HOME, key: process.env.IMAGESTEP_API_KEY, base
 let out;
 
 function home(tokens) {
-  const dir = mkdtempSync(join(tmpdir(), "imagestep-cli-env-"));
+  const dir = mkdtempSync(join(tmpdir(), "imagestep-test-cli-env-"));
   onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
   if (tokens) {
     mkdirSync(join(dir, ".imagestep"));

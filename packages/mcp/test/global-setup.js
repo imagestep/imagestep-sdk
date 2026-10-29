@@ -5,8 +5,10 @@ import { join } from "node:path";
 // Once before a run (vitest.config.mjs globalSetup, #896 — apps/cli's #880): the test-file folders (setup.js) that killed
 // runs left behind go. A run stopped half-way (Ctrl-C, a timeout, a crash) never reaches a file's own cleanup. Only folders
 // older than an hour: another run, in another checkout or session, may be using its fresh ones right now. Never a server's
-// own `imagestep-mcp-` scratch folder: a stdio server running for hours on this machine is still using it.
-const PREFIX = "imagestep-mcp-test-";
+// own `imagestep-mcp-` scratch folder: a stdio server running for hours on this machine is still using it. The repo's test
+// prefix (#921: the root test/temp-dirs.test.js holds it to the root test/global-setup.js — a copy, as the public export
+// carries this package without it).
+const PREFIX = "imagestep-test-";
 
 export default function sweep() {
   const old = Date.now() - 3600e3;

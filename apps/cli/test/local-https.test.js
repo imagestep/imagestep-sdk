@@ -17,7 +17,7 @@ let server;
 let base;
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "imagestep-cli-tls-"));
+  dir = mkdtempSync(join(tmpdir(), "imagestep-test-cli-tls-"));
   execFileSync(
     "openssl",
     ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-days", "1"].concat([

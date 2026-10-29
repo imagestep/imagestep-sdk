@@ -27,7 +27,7 @@ let root;
 let cwd;
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), "imagestep-cli-collection-"));
+  root = mkdtempSync(join(tmpdir(), "imagestep-test-cli-collection-"));
   mkdirSync(join(root, "shoot", "raw"), { recursive: true });
   writeFileSync(join(root, "shoot", "a.png"), PNG);
   writeFileSync(join(root, "shoot", "raw", "b.png"), PNG);

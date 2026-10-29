@@ -52,7 +52,7 @@ describe("the presigned PUT", () => {
   it("sends stage-upload's Content-Type, not the detected one, and the file's byte count", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal("fetch", stubbed);
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-put-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-put-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const path = join(dir, "a.png");
     writeFileSync(path, Buffer.alloc(1234));

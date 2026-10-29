@@ -97,7 +97,7 @@ describe("imagestep jobs estimate", () => {
     const { body } = await run("estimate", "--steps", JSON.stringify(steps), "--asset-ids", "a1");
     expect(body).toEqual({ steps, assetIds: ["a1"] });
 
-    const file = join(tmpdir(), `steps-${process.pid}.json`);
+    const file = join(tmpdir(), `imagestep-test-steps-${process.pid}.json`);
     writeFileSync(file, JSON.stringify(steps));
     try {
       const fromFile = await run("estimate", "--steps", file, "--asset-ids", "a1");
@@ -148,7 +148,7 @@ describe("variants, templates and rows (#266)", () => {
       { title: "Hi", site: "imagestep.dev" },
       { title: "Bye", site: "imagestep.dev" }
     ];
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-rows-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-rows-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const file = join(dir, "rows.json");
     writeFileSync(file, JSON.stringify(rows));

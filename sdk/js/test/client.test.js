@@ -1043,7 +1043,7 @@ describe("stream bodies on a real socket (#528)", () => {
     const { join } = await import("node:path");
     const { createHash } = await import("node:crypto");
     const bytes = Buffer.alloc(3 * 1024 * 1024 + 17, 5);
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-sdk-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-sdk-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #896
     const path = join(dir, "big.png");
     writeFileSync(path, bytes);
@@ -1085,7 +1085,7 @@ describe("stream bodies on a real socket (#528)", () => {
     const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-sdk-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-sdk-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #896: the test removes it too, unless it fails first
     const path = join(dir, "photo.jpg");
     writeFileSync(path, Buffer.alloc(64, 1));

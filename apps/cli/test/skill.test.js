@@ -116,7 +116,7 @@ describe("imagestep skill", () => {
   });
 
   it("--install claude-code writes ~/.claude/skills/<name>/SKILL.md and nothing else", async () => {
-    const home = mkdtempSync(join(tmpdir(), "imagestep-skill-"));
+    const home = mkdtempSync(join(tmpdir(), "imagestep-test-skill-"));
     onTestFinished(() => rmSync(home, { recursive: true, force: true })); // #880
     const { stderr } = await run(process.execPath, [bin, "skill", "--install", "claude-code"], { env: { ...process.env, HOME: home } });
     const installed = join(home, ".claude", "skills", SKILL_NAME, "SKILL.md");

@@ -13,7 +13,7 @@ const outer = process.env.TMPDIR;
 let dir;
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), "imagestep-mcp-test-"));
+  dir = mkdtempSync(join(tmpdir(), "imagestep-test-mcp-test-"));
   process.env.TMPDIR = dir;
 });
 

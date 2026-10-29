@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +16,10 @@ import { getDetectedMimeType, validateFileForUpload } from "../src/utils/file-ut
  * thing standing between them and `application/octet-stream` — i.e. between a customer's .3fr being
  * uploaded and being silently filtered out by their own `--mime-type` flag.
  */
-const dir = mkdtempSync(join(tmpdir(), "imagestep-cli-test-"));
+let dir;
+beforeAll(() => {
+  dir = mkdtempSync(join(tmpdir(), "imagestep-test-cli-"));
+});
 afterAll(() => rmSync(dir, { recursive: true, force: true })); // #880
 
 function file(name, bytes) {

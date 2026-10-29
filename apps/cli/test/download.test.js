@@ -73,7 +73,7 @@ beforeEach(() => {
 
 describe("downloadAsset", () => {
   it("streams to a temporary name and renames it when whole", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-dl-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const { target, bytes } = await downloadAsset("ast_1", { dir });
     expect(target).toBe(join(dir, "ast_1.png"));
@@ -90,7 +90,7 @@ describe("downloadAsset", () => {
         res.write(payload.subarray(0, 1024)); // …and never another byte
       else res.end(payload);
     };
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-dl-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     const { target } = await downloadAsset("ast_2", { dir });
     expect(state.storageHits).toBe(2);
@@ -101,7 +101,7 @@ describe("downloadAsset", () => {
       res.writeHead(200, { "content-type": "image/png" });
       res.write(payload.subarray(0, 1024));
     };
-    const empty = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    const empty = mkdtempSync(join(tmpdir(), "imagestep-test-dl-"));
     onTestFinished(() => rmSync(empty, { recursive: true, force: true })); // #880
     await expect(downloadAsset("ast_3", { dir: empty })).rejects.toThrow(/stalled/);
     expect(readdirSync(empty)).toEqual([]);
@@ -118,7 +118,7 @@ describe("jobs outputs --download", () => {
         whole(req, res);
       }, 30);
     };
-    const dir = mkdtempSync(join(tmpdir(), "imagestep-dl-"));
+    const dir = mkdtempSync(join(tmpdir(), "imagestep-test-dl-"));
     onTestFinished(() => rmSync(dir, { recursive: true, force: true })); // #880
     vi.spyOn(console, "log").mockImplementation(() => {});
     const { default: jobsCommand } = await import("../src/commands/jobs.js");
