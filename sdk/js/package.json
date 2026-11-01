@@ -31,7 +31,8 @@
     "build": "esbuild src/index.js --bundle --platform=neutral --format=cjs --outfile=dist/index.cjs --target=node20 --external:node:*",
     "gen:types": "node scripts/gen-types.mjs",
     "prepublishOnly": "pnpm run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "clean": "rm -rf dist coverage"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.5",
