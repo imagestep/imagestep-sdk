@@ -99,8 +99,10 @@ export async function prepareFileList(filePaths, mimeTypeFilter) {
     } else if (stats.isDirectory()) {
       console.log(chalk.cyan(`Scanning directory: ${absolutePath}`));
       const { files: dirFiles, skipped: dirSkipped } = await scanDirectoryRecursive(absolutePath, null, normalizedFilter);
-      fileInfoList.push(...dirFiles);
-      skippedFiles.push(...dirSkipped);
+      // One push per file, not `push(...dirFiles)`: a spread passes every element as an argument, and a directory of
+      // ~150k files overflows the call stack with a RangeError.
+      for (const file of dirFiles) fileInfoList.push(file);
+      for (const skip of dirSkipped) skippedFiles.push(skip);
       console.log(chalk.green(`  Found ${dirFiles.length} file(s) in directory`));
       if (dirSkipped.length > 0) {
         console.log(chalk.yellow(`  Skipped ${dirSkipped.length} file(s) by mime filter`));

@@ -164,8 +164,9 @@ export async function scanDirectoryRecursive(dirPath, basePath = null, mimeTypeF
 
     if (entry.isDirectory()) {
       const subResult = await scanDirectoryRecursive(fullPath, basePath, mimeTypeFilter);
-      results.push(...subResult.files);
-      skipped.push(...subResult.skipped);
+      // One push per file, not a spread — a subtree of ~150k files is a RangeError as arguments.
+      for (const file of subResult.files) results.push(file);
+      for (const skip of subResult.skipped) skipped.push(skip);
     } else if (entry.isFile()) {
       const validation = await validateFileForUpload(fullPath, mimeTypeFilter);
 

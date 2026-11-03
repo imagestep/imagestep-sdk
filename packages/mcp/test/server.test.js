@@ -1522,7 +1522,7 @@ describe("a bad key stops at the hosted server (#882)", () => {
         return json(401, {
           success: false,
           timestamp: "2026-10-24T12:00:00Z",
-          error: { code: "unauthorized", message: "Invalid API key", retryable: false }
+          error: { code: "unauthorized", message: "Invalid API key. Get one at https://imagestep.dev/keys", retryable: false }
         });
       }
       return json(200, { success: true, data: [], meta: { hasMore: false, nextCursor: null } });
@@ -1561,7 +1561,7 @@ describe("a bad key stops at the hosted server (#882)", () => {
           expect(res.body.result.isError).toBe(true);
           expect(res.body.result.structuredContent.error).toMatchObject({
             code: "unauthorized",
-            message: "Invalid API key",
+            message: "Invalid API key. Get one at https://imagestep.dev/keys",
             retryable: false
           });
         } else {
@@ -1683,7 +1683,11 @@ describe("a bad key stops at the hosted server (#882)", () => {
       for (const key of ["is_sk_short", "sk-proj-SOMEONEELSESKEY", `is_sk_${"x".repeat(31)}!`, `is_sk_${"x".repeat(33)}`]) {
         for (let i = 0; i < 10; i++) {
           const res = await post(search(), { key, from: A });
-          expect(res.body.result.structuredContent.error).toMatchObject({ code: "unauthorized", message: "Invalid API key", status: 401 });
+          expect(res.body.result.structuredContent.error).toMatchObject({
+            code: "unauthorized",
+            message: "Invalid API key. Get one at https://imagestep.dev/keys",
+            status: 401
+          });
         }
       }
       expect(svc.probes).toEqual([]);

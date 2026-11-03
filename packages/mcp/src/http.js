@@ -29,8 +29,14 @@ export const VISITOR_WINDOW_MS = 60_000;
 const VISITOR_MAX = 50_000;
 const OVERFLOW = "overflow";
 
-/** The service's own answer to a key it does not know (`UnifiedAuthenticationFilter`), so a tool's error reads as before. */
-const INVALID_KEY_BODY = JSON.stringify({ success: false, error: { code: "unauthorized", message: "Invalid API key", retryable: false } });
+/**
+ * The service's own answer to a key it does not know (`UnifiedAuthenticationFilter.INVALID_API_KEY`), so a tool's error
+ * reads as before — the key page included (imagestep#935).
+ */
+const INVALID_KEY_BODY = JSON.stringify({
+  success: false,
+  error: { code: "unauthorized", message: "Invalid API key. Get one at https://imagestep.dev/keys", retryable: false }
+});
 
 /**
  * The reads that are public on the service (`auth.public-paths`): they answer whatever key is sent, and never 401 — the
