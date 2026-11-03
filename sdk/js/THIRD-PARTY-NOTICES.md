@@ -38,9 +38,9 @@ dependency that never reaches the browser belongs in §4, not here.
 | ---------------------------------------------------------------- | ------- | ------------------------------------------------- |
 | [react](https://github.com/facebook/react)                       | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
 | [react-dom](https://github.com/facebook/react)                   | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
-| [next](https://github.com/vercel/next.js)                        | 16.4.2  | MIT — © 2025 Vercel, Inc.                         |
+| [next](https://github.com/vercel/next.js)                        | 16.4.3  | MIT — © 2025 Vercel, Inc.                         |
 | [radix-ui](https://github.com/radix-ui/primitives)               | 1.8.1   | MIT — © 2022 WorkOS                               |
-| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.61.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
+| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.62.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
 | [class-variance-authority](https://github.com/joe-bell/cva)      | 0.7.1   | Apache-2.0 — §5.2                                 |
 | [clsx](https://github.com/lukeed/clsx)                           | 2.1.1   | MIT — © Luke Edwards                              |
 | [tailwind-merge](https://github.com/dcastil/tailwind-merge)      | 3.7.0   | MIT — © 2021 Dany Castillo                        |
@@ -57,8 +57,8 @@ libraries those pages stand on are served from this origin too:
 
 | Package                                                               | Version | Licence                                |
 | --------------------------------------------------------------------- | ------- | -------------------------------------- |
-| [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.90.0  | MIT — © 2019-present Beier(Bill) Luo   |
-| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 6.0.0   | MIT — © 2019-present Beier(Bill) Luo   |
+| [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.91.0  | MIT — © 2019-present Beier(Bill) Luo   |
+| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 6.0.1   | MIT — © 2019-present Beier(Bill) Luo   |
 | [zod](https://github.com/colinhacks/zod)                              | 4.6.7   | MIT — © 2025 Colin McDonnell           |
 | [date-fns](https://github.com/date-fns/date-fns)                      | 4.4.0   | MIT — © 2021 Sasha Koss and Lesha Koss |
 
@@ -130,7 +130,7 @@ this row exists. Full text: §5.4.
 | --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `imagestep`           | npm      | nothing — zero runtime dependencies                                                                                                |
 | `n8n-nodes-imagestep` | npm      | nothing — zero runtime dependencies, by design (the n8n Creator Portal reviews the tree)                                           |
-| `@imagestep/mcp`      | npm      | `@modelcontextprotocol/sdk` 1.32.1 (MIT — © 2024 Anthropic, PBC) · `zod` 4.6.x (MIT — © 2025 Colin McDonnell) · `imagestep` (ours) |
+| `@imagestep/mcp`      | npm      | `@modelcontextprotocol/sdk` 1.32.2 (MIT — © 2024 Anthropic, PBC) · `zod` 4.6.x (MIT — © 2025 Colin McDonnell) · `imagestep` (ours) |
 | `imagestep-cli`       | npm      | nine runtime dependencies — §3.1                                                                                                   |
 | `imagestep`           | PyPI     | `httpx` ≥ 0.27 (BSD-3-Clause — © 2019 Encode OSS Ltd) — §5.5                                                                       |
 

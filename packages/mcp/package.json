@@ -28,12 +28,12 @@
     "eval": "node eval/run.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "imagestep": "workspace:*",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^1.1.0",
+    "@anthropic-ai/sdk": "^1.3.0",
     "@vitest/coverage-v8": "^5.0.5",
     "vitest": "^5.0.5"
   },
