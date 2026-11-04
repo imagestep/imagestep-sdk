@@ -2501,6 +2501,8 @@ export interface components {
         };
         /** @description One stored image: what it is called, what it is, how it is labelled and published, when it expires and, for a job's output, how it was made */
         Asset: {
+            /** @description true when an AI model made this image, or it was made from one a model made. Every file ImageStep writes from it carries the machine-readable AI mark (XMP `Iptc4xmpExt:DigitalSourceType` = `trainedAlgorithmicMedia`), whatever `metadata` asks for. Set when the asset is made and never changed */
+            aiGenerated: boolean;
             /** @description The collection it is in — an opaque label you chose, matched exactly; absent when it is in none */
             collection?: string;
             /**
