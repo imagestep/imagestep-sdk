@@ -24,6 +24,20 @@ and returns structured errors with `retryable`, `param` and the service's
 `requestId` (quote it when reporting a failure), so a parameter mistake is refused **before** any
 credit is charged.
 
+`file_paths` are files on your machine, and the agent naming them may be following an instruction it
+read in a page or a mail, so the server checks each one before reading a byte of it:
+
+- a path through a hidden file or folder — any name starting with `.` (`~/.ssh`, `~/.imagestep`,
+  `.env`) — is refused, also when a symlink leads there; `./` and `../` are resolved first;
+- when your client declares MCP `roots`, only files under them are read; when it declares none,
+  `IMAGESTEP_MCP_FILE_ROOTS` (folders separated like `PATH`) does the same job; with neither, any
+  other folder is readable;
+- roots are compared on real paths, so a symlink inside a root cannot lead out of it.
+
+A refusal is `invalid_param` on `file_paths` and names the path by its index, never its contents.
+And a job over local files does **not** publish its outputs unless the call says `publish: true` —
+`publish` defaults to on only when the inputs are `asset_ids` or `urls` (and for `generate`).
+
 The write tools (`generate` · `transform` · `run_preset` · `save_preset` · `send_feedback`) take an optional `idempotency_key`.
 An MCP client that times out makes the agent call the tool again; with the same key
 and the same arguments that second call returns what the first one answered — the job it created, the preset it saved — instead
@@ -156,7 +170,8 @@ max 600 s).
 
 The agent calls `transform` (`remove_bg`, `file_paths`), then `transform` (`upscale`,
 `asset_ids` = the previous output, `parameters: {"scaleFactor": 2}`), and reads `publicUrl` from
-the last result. Three calls, zero image bytes in context.
+the last result — the first call made from a local file publishes nothing, the second, made from
+an asset id, publishes by default. Three calls, zero image bytes in context.
 
 ## Run it yourself
 
@@ -165,7 +180,8 @@ IMAGESTEP_API_KEY=is_sk_… npx -y @imagestep/mcp            # stdio
 npx -y @imagestep/mcp --http --port 8787                   # HTTP on /mcp, key per request
 ```
 
-`IMAGESTEP_BASE_URL` points the server at another API host.
+`IMAGESTEP_BASE_URL` points the server at another API host. `IMAGESTEP_MCP_FILE_ROOTS=/home/me/shoot:/srv/images`
+holds `file_paths` to those folders when your client declares no MCP roots (see above).
 
 `--http` listens on `127.0.0.1` and answers only to `Host: localhost:<port>` / `127.0.0.1:<port>` / `[::1]:<port>` —
 anything else is a 403 before a key is looked at, so a web page that rebinds a hostname of its own to your machine cannot

@@ -1,5 +1,5 @@
 name: Set up pnpm
-description: pnpm's own release binary, at the version root package.json's `packageManager` pins, put on PATH.
+description: pnpm's own release binary, at the version root package.json's `packageManager` pins, checked against the release's sha256 and put on PATH.
 
 # NOT `pnpm/action-setup`. That action's installer `npm install`s pnpm LATEST and then self-updates
 # DOWN to the version `packageManager` already pins — two registry round trips for a version we know.
@@ -12,6 +12,17 @@ description: pnpm's own release binary, at the version root package.json's `pack
 # stays the only place it is spelled. `--max-time` is the bound that was missing; the closing
 # `--version` turns a truncated download into a named failure here rather than a confusing one later.
 #
+# The binary runs in jobs that hold credentials — in a release, the job that can mint the registry's
+# OIDC token — so it is checked before it runs (imagestep#941). pnpm publishes no checksum file, but
+# GitHub records the sha256 of every asset it is given, and pnpm's releases are IMMUTABLE: once
+# published, an asset can be neither replaced nor added and the tag cannot move. So the digest the
+# releases API reports for this version is the digest of what pnpm published, and stays so; the step
+# refuses a release that is not immutable or names no digest, because then the number would prove
+# nothing. That defends against a corrupted or substituted download and against an asset swapped
+# after the release; it does NOT defend against a bad release pnpm itself published — the digest
+# describes whatever went out. A hash pinned here by hand would defend against no more, and would be
+# a second place every pnpm bump edits.
+#
 # Must run AFTER actions/checkout (this file and package.json come from the checkout) and AHEAD of
 # actions/setup-node, which shells out to pnpm to resolve the store path for its cache. `node` is on
 # the runner before setup-node runs, which is what makes reading package.json here work. The path is
@@ -21,14 +32,33 @@ description: pnpm's own release binary, at the version root package.json's `pack
 runs:
   using: composite
   steps:
-    - name: Install pnpm (release binary, version from packageManager)
+    - name: Install pnpm (release binary, version from packageManager, sha256 from the release)
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
+        set -euo pipefail
         version="$(node -p "require(process.env.GITHUB_WORKSPACE + '/package.json').packageManager.split('@')[1]")"
+        digest="$(curl -fsSL --retry 3 --retry-all-errors --max-time 60 \
+          -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/pnpm/pnpm/releases/tags/v$version" \
+          | jq -r 'if .immutable == true then ([.assets[] | select(.name == "pnpm-linux-x64") | .digest][0] // "none") else "mutable" end')"
+        case "$digest" in
+          sha256:*) ;;
+          mutable)
+            echo "::error::pnpm v$version's release is not immutable, so the digest GitHub reports for it proves nothing — nothing installed"
+            exit 1
+            ;;
+          *)
+            echo "::error::pnpm v$version's release reports no sha256 for pnpm-linux-x64 — nothing installed"
+            exit 1
+            ;;
+        esac
         mkdir -p "$RUNNER_TEMP/pnpm"
         curl -fsSL --retry 3 --retry-all-errors --max-time 120 \
           "https://github.com/pnpm/pnpm/releases/download/v$version/pnpm-linux-x64" \
           -o "$RUNNER_TEMP/pnpm/pnpm"
+        echo "${digest#sha256:}  $RUNNER_TEMP/pnpm/pnpm" | sha256sum -c --quiet -
         chmod +x "$RUNNER_TEMP/pnpm/pnpm"
         echo "$RUNNER_TEMP/pnpm" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/pnpm/pnpm" --version

@@ -1,23 +1,35 @@
 name: Set up uv
-description: uv and uvx from uv's own release tarball, at the one version pinned here, put on PATH.
+description: uv and uvx from uv's own release tarball, at the one version pinned here, checked against the sha256 pinned beside it and put on PATH.
 
 # From the release binary rather than uv's installer script, for the reason setup-pnpm spells out:
 # the installer is another unbounded network step, and this is one GET with a bound. This file is the
 # only place the version is written. Both binaries: the Python SDK's tests run under `uv run --frozen`,
 # and its type generator runs with `uvx`.
+#
+# Checked before it runs (imagestep#941), against a sha256 pinned beside the version rather than one
+# fetched at run time: this release predates GitHub's asset digests and release attestations (the API
+# reports neither for it), so nothing GitHub records says what was published, and its checksum file
+# sits in the same release as the tarball — it would prove the download arrived intact and nothing
+# about the release itself. The pin was read off the release when the version was. Bump the two
+# together: the comment on UV_SHA256 names the version it belongs to, and
+# test/ci-supply-chain.test.js is red when the two disagree.
 
 runs:
   using: composite
   steps:
-    - name: Install uv (release binary, pinned)
+    - name: Install uv (release binary, pinned, sha256 checked)
       shell: bash
       env:
         UV_VERSION: 0.6.10
+        UV_SHA256: d58885f055fdb726d12cdd1cc54119432a0e4557c8e8ba04ca1d625058b98832 # uv-x86_64-unknown-linux-gnu.tar.gz of 0.6.10
       run: |
+        set -euo pipefail
         mkdir -p "$RUNNER_TEMP/uv"
         curl -fsSL --retry 3 --retry-all-errors --max-time 120 \
           "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-x86_64-unknown-linux-gnu.tar.gz" \
-          | tar -xz -C "$RUNNER_TEMP/uv" --strip-components=1 \
-            uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx
+          -o "$RUNNER_TEMP/uv.tar.gz"
+        echo "$UV_SHA256  $RUNNER_TEMP/uv.tar.gz" | sha256sum -c --quiet -
+        tar -xzf "$RUNNER_TEMP/uv.tar.gz" -C "$RUNNER_TEMP/uv" --strip-components=1 \
+          uv-x86_64-unknown-linux-gnu/uv uv-x86_64-unknown-linux-gnu/uvx
         echo "$RUNNER_TEMP/uv" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/uv/uv" --version

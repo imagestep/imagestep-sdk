@@ -794,6 +794,24 @@ def test_a_missing_webhook_secret_raises_instead_of_verifying_a_forgery():
             construct_webhook_event(body, forged, secret, now=now)  # type: ignore[arg-type]
 
 
+def test_a_non_ascii_signature_is_a_mismatch_not_a_type_error():
+    # hmac.compare_digest raises TypeError on a str with a non-ASCII character, so the receiver answered 500.
+    body, now = "{}", 1_800_000_000
+    assert verify_webhook_signature(body, f"t={now},v1=\u00e9" + "0" * 63, "whsec_x", now=now) is False
+
+
+def test_an_id_is_one_path_segment_never_a_path():
+    # httpx folds `..` out of a path, so an unencoded id could steer a call onto another route of the same account.
+    rec = Recorder(router=lambda request: httpx.Response(204))
+    c = client(rec)
+    c.assets.delete("../api-keys/self")
+    c.webhooks.delete("x/../../presets/mine")
+    assert [r.url.raw_path.decode() for r in rec.calls] == [
+        "/api/v1/assets/..%2Fapi-keys%2Fself",
+        "/api/v1/webhook-endpoints/x%2F..%2F..%2Fpresets%2Fmine",
+    ]
+
+
 def test_webhooks_create_drops_unset_fields():
     rec = Recorder(envelope({"id": "wh_1", "secret": "whsec_once"}))
     client(rec).webhooks.create("https://example.com/hook", events=["job.completed"])

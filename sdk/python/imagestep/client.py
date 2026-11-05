@@ -22,6 +22,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Iterator, NamedTuple
+from urllib.parse import quote
 
 import httpx
 
@@ -143,6 +144,14 @@ def _query(params: dict[str, Any] | None) -> str:
     return f"?{httpx.QueryParams(pairs)}" if pairs else ""
 
 
+def _seg(value: Any) -> str:
+    """One path segment, percent-encoded (`@` kept: `slug@version` is how a pinned preset or template is named, and it
+    is a legal segment character): an id is data, never path. Without it `assets.delete("../api-keys/self")`
+    is `DELETE /api/v1/api-keys/self` once httpx normalises the dot-segments (the JS SDK encodes with
+    `encodeURIComponent` for the same reason)."""
+    return quote(str(value), safe="@")
+
+
 def _compact(body: dict[str, Any]) -> dict[str, Any]:
     """Drop None values so an omitted option is omitted on the wire too."""
     return {k: v for k, v in body.items() if v is not None}
@@ -208,7 +217,7 @@ def _server_wait_seconds(seconds: float | None) -> int:
 
 
 def _job_path(job_id: str, wait: float | None) -> str:
-    return f"/api/v1/jobs/{job_id}" + (f"?wait={_server_wait_seconds(wait)}" if wait else "")
+    return f"/api/v1/jobs/{_seg(job_id)}" + (f"?wait={_server_wait_seconds(wait)}" if wait else "")
 
 
 def _wait_pause(error: ImageStepError, interval: float, deadline: float) -> float:
@@ -875,7 +884,7 @@ class Ops:
         return self._client.get("/api/v1/ops").data
 
     def get(self, op: str) -> OpDefinition:
-        return self._client.get(f"/api/v1/ops/{op}").data
+        return self._client.get(f"/api/v1/ops/{_seg(op)}").data
 
     def run(
         self,
@@ -1177,7 +1186,7 @@ class Assets:
         (full size, in a type a browser shows), original (the bytes as uploaded or produced) or preview (a WebP at
         most 400 px wide). Both requests are retried like any other (#567)."""
         core = self._client._core
-        url, headers, _ = core.prepare("GET", f"/api/v1/assets/{asset_id}/content{_query({'variant': variant})}", None, None, None)
+        url, headers, _ = core.prepare("GET", f"/api/v1/assets/{_seg(asset_id)}/content{_query({'variant': variant})}", None, None, None)
         response = self._client._request_raw("GET", url, headers=headers)
         location = response.headers.get("location")
         if response.is_redirect and location:
@@ -1189,7 +1198,7 @@ class Assets:
         raise ImageStepError(response.status_code, "internal_error", "content answered without a redirect", True, request_url=url)
 
     def get(self, asset_id: str) -> Asset:
-        return self._client.get(f"/api/v1/assets/{asset_id}").data
+        return self._client.get(f"/api/v1/assets/{_seg(asset_id)}").data
 
     def list(self, **params: Any) -> Page:
         """`page` or `cursor` (the `meta["nextCursor"]` of the previous page, imagestep#493), `per_page`,
@@ -1251,7 +1260,7 @@ class Assets:
         several skip those."""
         items = _ids(ids)
         if len(items) == 1:
-            self._client.delete(f"/api/v1/assets/{items[0]}")
+            self._client.delete(f"/api/v1/assets/{_seg(items[0])}")
             return {"deletedCount": 1, "deleted": [items[0]]}
         return self._client.post("/api/v1/assets/delete", {"ids": items}).data
 
@@ -1297,7 +1306,7 @@ class Jobs:
         A job document carries the first 100 inline and sets `itemsTruncated` when there are more; this is how to
         read the rest, and `status="FAILED"` is how to read just the ones a resume would run again. Each row
         carries the `index` the rest of the API names it by. `page` or `cursor`, `per_page`."""
-        result = self._client.get(f"/api/v1/jobs/{job_id}/items{_query(params)}")
+        result = self._client.get(f"/api/v1/jobs/{_seg(job_id)}/items{_query(params)}")
         return Page(result.data, result.meta)
 
     def iterate_items(self, job_id: str, **params: Any) -> Iterator[JobItem]:
@@ -1319,10 +1328,10 @@ class Jobs:
         return _walk(self.list, params)
 
     def cancel(self, job_id: str) -> Job:
-        return self._client.post(f"/api/v1/jobs/{job_id}/cancel").data
+        return self._client.post(f"/api/v1/jobs/{_seg(job_id)}/cancel").data
 
     def resume(self, job_id: str) -> Job:
-        return self._client.post(f"/api/v1/jobs/{job_id}/resume").data
+        return self._client.post(f"/api/v1/jobs/{_seg(job_id)}/resume").data
 
     def wait(
         self,
@@ -1462,7 +1471,7 @@ class Presets:
 
     def get(self, slug: str) -> PresetData:
         """The export shape: the current steps and subjects, and every superseded version."""
-        return self._client.get(f"/api/v1/presets/{slug}").data
+        return self._client.get(f"/api/v1/presets/{_seg(slug)}").data
 
     def create(self, preset: dict[str, Any], *, idempotency_key: str | None = None) -> PresetData:
         """Save a preset. Pass `idempotency_key` to make your own retry the same create, not a second preset."""
@@ -1470,10 +1479,10 @@ class Presets:
 
     def update(self, slug: str, preset: dict[str, Any]) -> PresetData:
         """Only what changes: the service merges the body over the current preset. New steps or subjects are a new version."""
-        return self._client.put(f"/api/v1/presets/{slug}", preset).data
+        return self._client.put(f"/api/v1/presets/{_seg(slug)}", preset).data
 
     def delete(self, slug: str) -> None:
-        self._client.delete(f"/api/v1/presets/{slug}")
+        self._client.delete(f"/api/v1/presets/{_seg(slug)}")
 
     def delete_version(self, slug: str, version: int) -> None:
         """Drop one superseded version (imagestep#445).
@@ -1482,7 +1491,7 @@ class Presets:
         versions nothing pins. It is also the way past the ceiling: at 50 versions on record an ``update`` that would
         save another is ``422 resource_limit_exceeded``. The current version cannot be deleted.
         """
-        self._client.delete(f"/api/v1/presets/{slug}/versions/{version}")
+        self._client.delete(f"/api/v1/presets/{_seg(slug)}/versions/{_seg(version)}")
 
     def import_(self, presets: list[dict[str, Any]]) -> BatchImportResultDTOPresetData:
         """Bulk import (`import` is a Python keyword, hence the trailing underscore)."""
@@ -1545,11 +1554,11 @@ class Templates:
 
     def get(self, template_id: str) -> TemplateData:
         """A template id, your own slug, or `id@version` for one frozen version."""
-        return self._client.get(f"/api/v1/templates/{template_id}").data
+        return self._client.get(f"/api/v1/templates/{_seg(template_id)}").data
 
     def versions(self, template_id: str) -> list[TemplateData]:
         """Every version ever saved, newest first."""
-        return self._client.get(f"/api/v1/templates/{template_id}/versions").data
+        return self._client.get(f"/api/v1/templates/{_seg(template_id)}/versions").data
 
     def create(self, template: dict[str, Any]) -> TemplateData:
         """Creates version 1 from `{name, html, css?, width, height, variables?}`."""
@@ -1558,11 +1567,11 @@ class Templates:
     def update(self, template_id: str, template: dict[str, Any]) -> TemplateData:
         """Saves a new version from only what changes — the service merges the body over the current one. The previous
         version stays readable as `{id}@{version}`."""
-        return self._client.put(f"/api/v1/templates/{template_id}", template).data
+        return self._client.put(f"/api/v1/templates/{_seg(template_id)}", template).data
 
     def delete(self, template_id: str) -> None:
         """Deletes the template and every version of it."""
-        self._client.delete(f"/api/v1/templates/{template_id}")
+        self._client.delete(f"/api/v1/templates/{_seg(template_id)}")
 
     def import_(self, templates: list[dict[str, Any]]) -> BatchImportResultDTOTemplateData:
         """Takes template documents — what `get()` returns — and creates each as version 1 (`import` is a Python
@@ -1588,7 +1597,7 @@ class Webhooks:
         return self._client.get("/api/v1/webhook-endpoints").data
 
     def get(self, endpoint_id: str) -> WebhookEndpoint:
-        return self._client.get(f"/api/v1/webhook-endpoints/{endpoint_id}").data
+        return self._client.get(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}").data
 
     def create(
         self,
@@ -1602,19 +1611,19 @@ class Webhooks:
         return self._client.post("/api/v1/webhook-endpoints", body).data
 
     def update(self, endpoint_id: str, patch: dict[str, Any]) -> WebhookEndpoint:
-        return self._client.put(f"/api/v1/webhook-endpoints/{endpoint_id}", patch).data
+        return self._client.put(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}", patch).data
 
     def delete(self, endpoint_id: str) -> None:
-        self._client.delete(f"/api/v1/webhook-endpoints/{endpoint_id}")
+        self._client.delete(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}")
 
     def rotate_secret(self, endpoint_id: str) -> WebhookEndpoint:
-        return self._client.post(f"/api/v1/webhook-endpoints/{endpoint_id}/rotate-secret").data
+        return self._client.post(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/rotate-secret").data
 
     def test(self, endpoint_id: str) -> WebhookDeliverySummary:
-        return self._client.post(f"/api/v1/webhook-endpoints/{endpoint_id}/test").data
+        return self._client.post(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/test").data
 
     def deliveries(self, endpoint_id: str, **params: Any) -> Page:
-        result = self._client.get(f"/api/v1/webhook-endpoints/{endpoint_id}/deliveries{_query(params)}")
+        result = self._client.get(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/deliveries{_query(params)}")
         return Page(result.data, result.meta)
 
     def iterate_deliveries(self, endpoint_id: str, **params: Any) -> Iterator[WebhookDeliverySummary]:
@@ -1888,7 +1897,7 @@ class AsyncOps:
         return (await self._client.get("/api/v1/ops")).data
 
     async def get(self, op: str) -> OpDefinition:
-        return (await self._client.get(f"/api/v1/ops/{op}")).data
+        return (await self._client.get(f"/api/v1/ops/{_seg(op)}")).data
 
     async def run(
         self,
@@ -2172,7 +2181,7 @@ class AsyncAssets:
     async def download(self, asset_id: str, *, variant: str = "readable") -> bytes:
         """See `Assets.download`: the signed redirect is followed without the API key."""
         core = self._client._core
-        url, headers, _ = core.prepare("GET", f"/api/v1/assets/{asset_id}/content{_query({'variant': variant})}", None, None, None)
+        url, headers, _ = core.prepare("GET", f"/api/v1/assets/{_seg(asset_id)}/content{_query({'variant': variant})}", None, None, None)
         response = await self._client._request_raw("GET", url, headers=headers)
         location = response.headers.get("location")
         if response.is_redirect and location:
@@ -2184,7 +2193,7 @@ class AsyncAssets:
         raise ImageStepError(response.status_code, "internal_error", "content answered without a redirect", True, request_url=url)
 
     async def get(self, asset_id: str) -> Asset:
-        return (await self._client.get(f"/api/v1/assets/{asset_id}")).data
+        return (await self._client.get(f"/api/v1/assets/{_seg(asset_id)}")).data
 
     async def list(self, **params: Any) -> Page:
         result = await self._client.get(f"/api/v1/assets{_query(params)}")
@@ -2225,7 +2234,7 @@ class AsyncAssets:
         several skip those."""
         items = _ids(ids)
         if len(items) == 1:
-            await self._client.delete(f"/api/v1/assets/{items[0]}")
+            await self._client.delete(f"/api/v1/assets/{_seg(items[0])}")
             return {"deletedCount": 1, "deleted": [items[0]]}
         return (await self._client.post("/api/v1/assets/delete", {"ids": items})).data
 
@@ -2266,7 +2275,7 @@ class AsyncJobs:
 
     async def items(self, job_id: str, **params: Any) -> Page:
         """`JobsAPI.items` for the async client: one page of a job's items (imagestep#440)."""
-        result = await self._client.get(f"/api/v1/jobs/{job_id}/items{_query(params)}")
+        result = await self._client.get(f"/api/v1/jobs/{_seg(job_id)}/items{_query(params)}")
         return Page(result.data, result.meta)
 
     def iterate_items(self, job_id: str, **params: Any) -> AsyncIterator[JobItem]:
@@ -2278,10 +2287,10 @@ class AsyncJobs:
         return _awalk(self.list, params)
 
     async def cancel(self, job_id: str) -> Job:
-        return (await self._client.post(f"/api/v1/jobs/{job_id}/cancel")).data
+        return (await self._client.post(f"/api/v1/jobs/{_seg(job_id)}/cancel")).data
 
     async def resume(self, job_id: str) -> Job:
-        return (await self._client.post(f"/api/v1/jobs/{job_id}/resume")).data
+        return (await self._client.post(f"/api/v1/jobs/{_seg(job_id)}/resume")).data
 
     async def wait(
         self,
@@ -2384,21 +2393,21 @@ class AsyncPresets:
         ).data
 
     async def get(self, slug: str) -> PresetData:
-        return (await self._client.get(f"/api/v1/presets/{slug}")).data
+        return (await self._client.get(f"/api/v1/presets/{_seg(slug)}")).data
 
     async def create(self, preset: dict[str, Any], *, idempotency_key: str | None = None) -> PresetData:
         return (await self._client.post("/api/v1/presets", preset, idempotency_key=idempotency_key)).data
 
     async def update(self, slug: str, preset: dict[str, Any]) -> PresetData:
-        return (await self._client.put(f"/api/v1/presets/{slug}", preset)).data
+        return (await self._client.put(f"/api/v1/presets/{_seg(slug)}", preset)).data
 
     async def delete(self, slug: str) -> None:
-        await self._client.delete(f"/api/v1/presets/{slug}")
+        await self._client.delete(f"/api/v1/presets/{_seg(slug)}")
 
     async def delete_version(self, slug: str, version: int) -> None:
         """Drop one superseded version — `slug@version` stops resolving, and that is how room is made at the
         50-version ceiling (imagestep#445)."""
-        await self._client.delete(f"/api/v1/presets/{slug}/versions/{version}")
+        await self._client.delete(f"/api/v1/presets/{_seg(slug)}/versions/{_seg(version)}")
 
     async def import_(self, presets: list[dict[str, Any]]) -> BatchImportResultDTOPresetData:
         return (await self._client.post("/api/v1/presets/import", presets)).data
@@ -2448,19 +2457,19 @@ class AsyncTemplates:
         return _awalk(lambda **p: self.list(filter, **p), {})
 
     async def get(self, template_id: str) -> TemplateData:
-        return (await self._client.get(f"/api/v1/templates/{template_id}")).data
+        return (await self._client.get(f"/api/v1/templates/{_seg(template_id)}")).data
 
     async def versions(self, template_id: str) -> list[TemplateData]:
-        return (await self._client.get(f"/api/v1/templates/{template_id}/versions")).data
+        return (await self._client.get(f"/api/v1/templates/{_seg(template_id)}/versions")).data
 
     async def create(self, template: dict[str, Any]) -> TemplateData:
         return (await self._client.post("/api/v1/templates", template)).data
 
     async def update(self, template_id: str, template: dict[str, Any]) -> TemplateData:
-        return (await self._client.put(f"/api/v1/templates/{template_id}", template)).data
+        return (await self._client.put(f"/api/v1/templates/{_seg(template_id)}", template)).data
 
     async def delete(self, template_id: str) -> None:
-        await self._client.delete(f"/api/v1/templates/{template_id}")
+        await self._client.delete(f"/api/v1/templates/{_seg(template_id)}")
 
     async def import_(self, templates: list[dict[str, Any]]) -> BatchImportResultDTOTemplateData:
         return (await self._client.post("/api/v1/templates/import", templates)).data
@@ -2484,7 +2493,7 @@ class AsyncWebhooks:
         return (await self._client.get("/api/v1/webhook-endpoints")).data
 
     async def get(self, endpoint_id: str) -> WebhookEndpoint:
-        return (await self._client.get(f"/api/v1/webhook-endpoints/{endpoint_id}")).data
+        return (await self._client.get(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}")).data
 
     async def create(
         self,
@@ -2497,19 +2506,19 @@ class AsyncWebhooks:
         return (await self._client.post("/api/v1/webhook-endpoints", body)).data
 
     async def update(self, endpoint_id: str, patch: dict[str, Any]) -> WebhookEndpoint:
-        return (await self._client.put(f"/api/v1/webhook-endpoints/{endpoint_id}", patch)).data
+        return (await self._client.put(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}", patch)).data
 
     async def delete(self, endpoint_id: str) -> None:
-        await self._client.delete(f"/api/v1/webhook-endpoints/{endpoint_id}")
+        await self._client.delete(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}")
 
     async def rotate_secret(self, endpoint_id: str) -> WebhookEndpoint:
-        return (await self._client.post(f"/api/v1/webhook-endpoints/{endpoint_id}/rotate-secret")).data
+        return (await self._client.post(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/rotate-secret")).data
 
     async def test(self, endpoint_id: str) -> WebhookDeliverySummary:
-        return (await self._client.post(f"/api/v1/webhook-endpoints/{endpoint_id}/test")).data
+        return (await self._client.post(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/test")).data
 
     async def deliveries(self, endpoint_id: str, **params: Any) -> Page:
-        result = await self._client.get(f"/api/v1/webhook-endpoints/{endpoint_id}/deliveries{_query(params)}")
+        result = await self._client.get(f"/api/v1/webhook-endpoints/{_seg(endpoint_id)}/deliveries{_query(params)}")
         return Page(result.data, result.meta)
 
     def iterate_deliveries(self, endpoint_id: str, **params: Any) -> AsyncIterator[WebhookDeliverySummary]:

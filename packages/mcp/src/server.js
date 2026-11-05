@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
+import { realpath } from "node:fs/promises";
+import { delimiter, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { RootsListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { ImageStep, ImageStepError, JobFailedError } from "imagestep";
 import { z } from "zod";
 import { assertPublicUrl } from "./safe-url.js";
@@ -627,6 +631,19 @@ const publishSchema = z
   .boolean()
   .default(true)
   .describe("Publish result assets so each output has a stable publicUrl on the CDN — the output itself at full size, not a thumbnail.");
+/**
+ * transform's and run_preset's publish (imagestep#942): no schema default, because the default depends on the input. A
+ * job over a local file is the one input that was not on the internet before the call — an agent fed an injected
+ * instruction could otherwise turn any picture on the disk into a URL search engines index (#835) — so its outputs stay
+ * private unless the agent asks; asset ids and URLs keep publish on.
+ */
+const imagePublishSchema = z
+  .boolean()
+  .optional()
+  .describe(
+    "Publish result assets so each output has a stable publicUrl on the CDN — the output itself at full size, not a thumbnail. " +
+      "Default true, except when file_paths are among the inputs: outputs made from a local file stay private unless you pass true."
+  );
 const dryRunSchema = z.boolean().default(false).describe("Price only — nothing is created or charged.");
 /**
  * transform and run_preset, which take images, price them without storing any (#572 → #586). Pricing a file or a URL
@@ -654,6 +671,15 @@ function unstoredCount({ dry_run, file_paths, urls }, allowLocalFiles) {
       param: "file_paths"
     });
   return (file_paths?.length || 0) + (urls?.length || 0);
+}
+/** A path with a segment that starts with "." — a hidden file or folder (#942); `p` is resolved, so no `.` / `..` remain. */
+function hidden(p) {
+  return p.split(/[\\/]+/).some((segment) => segment.startsWith("."));
+}
+/** Whether `p` is `root` or inside it. */
+function under(p, root) {
+  const rel = relative(root, p);
+  return rel === "" || (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`));
 }
 /** job_status's own publish: off by default, because checking on a job must not make its results public (#278). */
 const statusPublishSchema = z
@@ -733,7 +759,11 @@ const filePathsSchema = z
   .array(z.string().min(1))
   .max(100)
   .optional()
-  .describe("Local files to upload first (only when the server runs on your machine over stdio).");
+  .describe(
+    "Local files to upload first (only when the server runs on your machine over stdio). A path through a hidden file or " +
+      'folder (a name starting with ".") is refused, and so is one outside the client\'s MCP roots, or outside ' +
+      "IMAGESTEP_MCP_FILE_ROOTS when the client declares none."
+  );
 const urlsSchema = z.array(z.url()).max(100).optional().describe("Public http(s) image URLs to ingest first.");
 
 /**
@@ -759,8 +789,10 @@ export function clientFor(options) {
  * `drain` is the hosted server's shutdown (#632): when it aborts, a call still waiting for its job answers at once with
  * the handle, as a wait that ran out does, instead of being cut when the process exits.
  * `transport` (`stdio` / `hosted`) rides in the client's User-Agent (#722).
+ * `fileRoots` — the folders `file_paths` may name when the client declares no MCP roots (#942); a list, or one string
+ * split like PATH (bin/ passes `IMAGESTEP_MCP_FILE_ROOTS`). Unset, any folder but a hidden one.
  *
- * @param {{ apiKey: string, baseUrl?: string, fetch?: typeof fetch, allowLocalFiles?: boolean, client?: ImageStep, catalogue?: object[], maxWaitSeconds?: number, drain?: AbortSignal, transport?: "stdio" | "hosted" }} options
+ * @param {{ apiKey: string, baseUrl?: string, fetch?: typeof fetch, allowLocalFiles?: boolean, client?: ImageStep, catalogue?: object[], maxWaitSeconds?: number, drain?: AbortSignal, transport?: "stdio" | "hosted", fileRoots?: string | string[] }} options
  */
 export function createServer(options) {
   const client = clientFor(options);
@@ -808,6 +840,90 @@ export function createServer(options) {
         "slug@version it answers with. When ImageStep cannot do what you need, report it with send_feedback instead of working around it."
     }
   );
+
+  /**
+   * Which local files a call may read (imagestep#942). Over stdio `file_paths` names files on the user's own machine, and
+   * the agent naming them may be following an instruction injected into a page or a mail it read. Three gates, all before
+   * a byte is read, none echoing what a file holds:
+   * - no segment of the path starts with "." — `~/.ssh`, `~/.imagestep`, `.env` — checked on the path as given (resolved,
+   *   so `./` and `../` are navigation, not names) and again on where its symlinks lead;
+   * - when the client declares MCP `roots`, only files under them — a client that declares the capability and lists none
+   *   shares no folder; otherwise the folders in `IMAGESTEP_MCP_FILE_ROOTS`; neither set, any folder;
+   * - the comparison is on the real path, so a symlink inside a root cannot lead out of it.
+   * The file sent on is the real path that passed, not the name given.
+   */
+  const envRoots = (Array.isArray(options.fileRoots) ? options.fileRoots : (options.fileRoots || "").split(delimiter))
+    .map((p) => p.trim())
+    .filter(Boolean);
+  let clientRoots = null;
+  server.server.setNotificationHandler(RootsListChangedNotificationSchema, () => {
+    clientRoots = null;
+  });
+
+  async function fileRoots() {
+    if (!server.server.getClientCapabilities()?.roots)
+      return envRoots.length ? { from: "IMAGESTEP_MCP_FILE_ROOTS", paths: envRoots } : null;
+    clientRoots ??= server.server.listRoots().then(
+      ({ roots }) => ({
+        from: "the client's MCP roots",
+        paths: roots.flatMap((r) => {
+          try {
+            return [fileURLToPath(r.uri)];
+          } catch {
+            return []; // not a file:// URI, or one naming another host: no folder of this machine
+          }
+        })
+      }),
+      (err) => {
+        clientRoots = null;
+        throw Object.assign(new Error(`the client declares MCP roots but did not list them: ${err?.message || err}`), {
+          code: "invalid_param",
+          param: "file_paths",
+          retryable: true
+        });
+      }
+    );
+    return clientRoots;
+  }
+
+  async function readableFiles(file_paths) {
+    const roots = await fileRoots();
+    // Each root as written and as its real path: a file that exists is compared by its real path, one that does not
+    // (the upload will say so) by the path as given.
+    const allowed = roots
+      ? (await Promise.all(roots.paths.map(async (p) => [resolve(p), await realpath(resolve(p)).catch(() => null)]))).flat().filter(Boolean)
+      : null;
+    function refused(i, why) {
+      return Object.assign(new Error(`file_paths[${i}] ${why}`), { code: "invalid_param", param: "file_paths", retryable: false });
+    }
+    const vetted = [];
+    for (const [i, given] of file_paths.entries()) {
+      const at = resolve(given);
+      if (hidden(at)) throw refused(i, 'goes through a hidden file or folder (a name starting with "."), which this server does not read');
+      const real = await realpath(at).catch(() => null);
+      if (real && hidden(real))
+        throw refused(i, 'leads to a hidden file or folder (a name starting with "."), which this server does not read');
+      if (allowed && !allowed.some((root) => under(real ?? at, root)))
+        throw refused(
+          i,
+          roots.paths.length
+            ? `is outside the folders this server may read (${roots.from}: ${roots.paths.join(", ")})`
+            : `is outside the folders this server may read: ${roots.from} name none`
+        );
+      vetted.push(real ?? at);
+    }
+    return vetted;
+  }
+
+  /**
+   * transform's and run_preset's input with the #942 rules applied: local files vetted, and publish off by default when
+   * there are any. Over HTTP `file_paths` is refused further on, as before.
+   */
+  async function withLocalRules(input) {
+    const publish = input.publish ?? !input.file_paths?.length;
+    if (!input.file_paths?.length || !allowLocalFiles) return { ...input, publish };
+    return { ...input, publish, file_paths: await readableFiles(input.file_paths) };
+  }
 
   async function ingest({ asset_ids, file_paths, urls, collection, retention_days }) {
     const ids = [...(asset_ids || [])];
@@ -1295,7 +1411,8 @@ export function createServer(options) {
         (catalogue.live
           ? ". "
           : " (built-in list — GET /api/v1/ops could not be read, so an op added since this release may be missing). ") +
-        "Inputs are asset ids, local file paths (stdio) or public URLs. " +
+        "Inputs are asset ids, local file paths (stdio) or public URLs; a job's outputs are published unless the inputs include " +
+        "local files, whose outputs stay private unless you pass publish: true. " +
         "ONE local file or URL with a deterministic op runs synchronously and NOTHING is stored in the account (no asset id): " +
         (allowLocalFiles
           ? "the result is written to a temp file on this machine and the answer carries its `path`. "
@@ -1344,11 +1461,12 @@ export function createServer(options) {
         idempotency_key: idempotencyKeySchema,
         wait: waitSchema,
         wait_seconds: WAIT_SECONDS,
-        publish: publishSchema
+        publish: imagePublishSchema
       })
     },
-    async (input) => {
+    async (given) => {
       try {
+        const input = await withLocalRules(given);
         assertOpParameters(input.parameters, "parameters");
         input.variants?.forEach((v, i) => assertOpParameters(v.parameters, `variants[${i}].parameters`));
         // read_metadata on bytes the agent is holding needs no asset at all, and it is free.
@@ -1441,11 +1559,12 @@ export function createServer(options) {
         idempotency_key: idempotencyKeySchema,
         wait: waitSchema,
         wait_seconds: WAIT_SECONDS,
-        publish: publishSchema
+        publish: imagePublishSchema
       })
     },
-    async (input) => {
+    async (given) => {
       try {
+        const input = await withLocalRules(given);
         const unstored = unstoredCount(input, allowLocalFiles);
         const assetIds = input.dry_run ? [...(input.asset_ids || [])] : await ingest(input);
         // Read only to decide or to describe (#520): with an image in hand nothing below needs the preset's full export.

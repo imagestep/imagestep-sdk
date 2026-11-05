@@ -55,7 +55,9 @@ def verify_webhook_signature(
         return False
     signed = str(timestamp).encode("ascii") + b"." + _as_bytes(raw_body)
     expected = hmac.new(_as_bytes(secret), signed, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature.lower())
+    # Bytes, not str: `compare_digest` raises TypeError on a str holding a non-ASCII character, so a header carrying
+    # one turned a forgery into a 500 instead of a False.
+    return hmac.compare_digest(expected.encode("ascii"), signature.lower().encode("utf-8"))
 
 
 def construct_webhook_event(

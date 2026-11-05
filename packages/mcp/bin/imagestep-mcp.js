@@ -48,6 +48,8 @@ if (args.includes("--http")) {
   }
   // The op list in the tool schema is read from GET /api/v1/ops once, here (#94); if that fails the
   // built-in list stands in and the tool description says so.
-  const server = await createServerWithCatalogue({ apiKey, baseUrl, allowLocalFiles: true, transport: "stdio" });
+  // The folders file_paths may name when the client declares no MCP roots (#942), separated like PATH.
+  const fileRoots = process.env.IMAGESTEP_MCP_FILE_ROOTS;
+  const server = await createServerWithCatalogue({ apiKey, baseUrl, allowLocalFiles: true, transport: "stdio", fileRoots });
   await server.connect(new StdioServerTransport());
 }

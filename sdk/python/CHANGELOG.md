@@ -4,6 +4,16 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
+## Unreleased
+
+### Security
+
+- Every id in a request path is percent-encoded (`@` kept, for `slug@version`). An id was pasted into the path as
+  given, and httpx folds `..` segments, so an untrusted id could steer a call onto another route of the same account —
+  `assets.delete("../api-keys/self")` revoked the client's own key. The JS SDK already encoded them.
+- `verify_webhook_signature` answers `False` for a signature header holding a non-ASCII character; it raised
+  `TypeError`, so a receiver answered 500 instead of rejecting the delivery.
+
 ## 0.2.0 — 2026-10-24
 
 ### Deprecated

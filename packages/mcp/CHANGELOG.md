@@ -4,6 +4,26 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/),
 and before 1.0 a minor version may change the interface.
 
+## Unreleased
+
+### Changed
+
+- **`transform` and `run_preset` no longer publish by default when `file_paths` are among the inputs.** A job over a
+  local file was the one input that was not on the internet before the call, and its outputs came back with a public
+  CDN URL search engines can index. They now stay private unless the call passes `publish: true`; `asset_ids` and
+  `urls` keep `publish` on by default, as does `generate`. `tools/list` shows no default for these two `publish` inputs,
+  and their descriptions say which applies.
+
+### Security
+
+- `file_paths` (stdio) is checked before a byte of any file is read, and a refused path is named by its index, never
+  echoed. A path through a hidden file or folder — any name starting with `.`, such as `~/.ssh` or `.env` — is refused;
+  `./` and `../` are resolved first, and the check runs again on where a symlink leads. When the client declares MCP
+  `roots`, only files under them are read (a client that declares the capability and lists none shares no folder), and
+  the list is asked for again after `notifications/roots/list_changed`. A client that declares no roots can be held to
+  folders of your choosing with `IMAGESTEP_MCP_FILE_ROOTS` (separated like `PATH`); with neither, any other folder is
+  read as before. Roots are compared on real paths, so a symlink inside a root cannot lead out of it.
+
 ## 0.2.1 — 2026-10-26
 
 ### Fixed
