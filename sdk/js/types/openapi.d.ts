@@ -3015,7 +3015,7 @@ export interface components {
         };
         /** @description One URL's outcome: an asset (id, status, name, existing) or an error */
         FromUrlResult: {
-            /** @description Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, or not in time, or this node was full when its turn came; retryable), `rate_limited` (your account had too many synchronous calls in flight when its turn came; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable) */
+            /** @description Why this URL did not become an asset; absent when it did. `code`: `invalid_param` (not an http(s) URL, a private or unresolvable address, a redirect, an HTTP error other than the ones below, no body; `param: url`), `provider_unavailable` (the URL's host answered 5xx, 429 or 408, hung up before answering in full, or not in time, or this node was full when its turn came; retryable), `rate_limited` (your account had too many synchronous calls in flight when its turn came; retryable), `unsupported_format` (not an image), `payload_too_large` (over the size limit; `param: file`) or `internal_error` (storing it failed on our side; retryable) */
             error?: components["schemas"]["ItemError"];
             /** @description true when the bytes were already an asset — a DONE one you held, or the one an earlier URL in this request became — and that asset is returned with nothing new stored. Absent when `error` is set */
             existing?: boolean;
@@ -6609,7 +6609,7 @@ export interface operations {
             /**
              * @description `provider_unavailable`, retryable, with `Retry-After` — `details.reason` is `capacity`,
              *     `deadline_exceeded` or `worker_unreachable`, `storage_read` for the JSON form's stored asset, or
-             *     `url_unavailable` when the `url`'s host answered 5xx, 429 or 408, or not in time.
+             *     `url_unavailable` when the `url`'s host answered 5xx, 429 or 408, hung up before answering in full, or not in time.
              */
             503: {
                 headers: {
@@ -6884,7 +6884,7 @@ export interface operations {
              *     - `deadline_exceeded` — the work took longer than the deadline (`Retry-After`)
              *     - `worker_unreachable` — no processing worker answered (`Retry-After`)
              *     - `storage_read` — the JSON form's stored asset could not be read (`Retry-After`)
-             *     - `url_unavailable` — the `url`'s host answered 5xx, 429 or 408, or not in time (`Retry-After`)
+             *     - `url_unavailable` — the `url`'s host answered 5xx, 429 or 408, hung up before answering in full, or not in time (`Retry-After`)
              */
             503: {
                 headers: {
