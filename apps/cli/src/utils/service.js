@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import chalk from "chalk";
 import { ImageStep } from "imagestep";
-import { getServiceUrl, getToken } from "../config.js";
+import { getForeignBaseUrl, getServiceUrl, getToken } from "../config.js";
 
 /**
  * Every call this CLI makes to the service goes through the JS SDK (`sdk/js`, npm `imagestep`): its transport —
@@ -79,10 +79,17 @@ export async function cliFetch(url, init) {
 
 /**
  * The key a request needs, or a "Not logged in" that names both ways to get one: `login` on a machine
- * with a browser, `IMAGESTEP_API_KEY` everywhere else (#264).
+ * with a browser, `IMAGESTEP_API_KEY` everywhere else (#264). Pointed at a server `login` did not sign
+ * in to, it says that the stored key is not sent there (#945) rather than that there is none.
  */
 export function requireApiKey() {
   const apiKey = getToken();
+  const foreign = !apiKey && getForeignBaseUrl();
+  if (foreign) {
+    console.log(chalk.red(`Error: no key for ${foreign}`));
+    console.log(chalk.yellow("A key stored by 'imagestep login' is sent only to the server that issued it — set IMAGESTEP_API_KEY"));
+    throw new Error(`No key for ${foreign}: a stored key is sent only to the server that issued it (set IMAGESTEP_API_KEY)`);
+  }
   if (!apiKey) {
     console.log(chalk.red("Error: Not logged in"));
     console.log(chalk.yellow("Run 'imagestep login', or set IMAGESTEP_API_KEY"));

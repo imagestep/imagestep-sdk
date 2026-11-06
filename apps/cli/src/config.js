@@ -87,19 +87,50 @@ function setEnv(env) {
   saveConfig(config);
 }
 
+/**
+ * `IMAGESTEP_BASE_URL`, or "". No key travels in clear text (#945): `http://` is accepted for this machine only —
+ * `localhost`, `127.0.0.1`, `[::1]` and `*.localhost`, where the local preset lives — and anything else that is not
+ * `https://` is refused before a request is built.
+ */
 function envBaseUrl() {
-  return (process.env[BASE_URL_ENV] || "").trim().replace(/\/+$/, "");
+  const base = (process.env[BASE_URL_ENV] || "").trim().replace(/\/+$/, "");
+  if (!base) return "";
+  let url;
+  try {
+    url = new URL(base);
+  } catch {
+    throw new Error(`${BASE_URL_ENV} is not a URL: ${base}`);
+  }
+  const host = url.hostname;
+  const loopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new Error(`${BASE_URL_ENV} must be https:// (http:// only for localhost, 127.0.0.1 or *.localhost): ${base}`);
+  }
+  return base;
+}
+
+/** The preset `IMAGESTEP_BASE_URL` names, or null — compared as URLs, so `HTTPS://API.imagestep.dev/` is `prod`. */
+function presetFor(base) {
+  const href = new URL(base).href;
+  return Object.keys(ENV_CONFIG).find((env) => new URL(ENV_CONFIG[env].serviceUrl).href === href) || null;
 }
 
 /**
- * The environment a call without an explicit env goes to. `IMAGESTEP_BASE_URL` naming one of the two
- * presets selects that preset — so `IMAGESTEP_BASE_URL=http://imagestep-service.localhost` is `--local`,
- * stored local key included; any other URL keeps the configured env's stored key.
+ * The environment a call without an explicit env goes to, or null. `IMAGESTEP_BASE_URL` naming one of
+ * the two presets selects that preset — so `IMAGESTEP_BASE_URL=http://imagestep-service.localhost` is
+ * `--local`, stored local key included. Any other URL is null: a key `login` stored goes only to the
+ * server that issued it (#945), and a host this machine never signed in to — a staging box, a proxy, a
+ * typo — gets `IMAGESTEP_API_KEY` or nothing.
  */
 function currentEnv() {
   const base = envBaseUrl();
-  const preset = base && Object.keys(ENV_CONFIG).find((env) => ENV_CONFIG[env].serviceUrl === base);
-  return preset || getEnv();
+  return base ? presetFor(base) : getEnv();
+}
+
+/** `IMAGESTEP_BASE_URL` when it names neither preset, else "" — so "not logged in" can say why the stored key stayed home. */
+function getForeignBaseUrl() {
+  const base = envBaseUrl();
+  return base && !presetFor(base) ? base : "";
 }
 
 /**
@@ -109,8 +140,9 @@ function currentEnv() {
  */
 function getToken(env) {
   if (!env && process.env[API_KEY_ENV]) return process.env[API_KEY_ENV];
-  const config = loadConfig();
-  return config.tokens[env || currentEnv()] || "";
+  const stored = env || currentEnv();
+  if (!stored) return "";
+  return loadConfig().tokens[stored] || "";
 }
 
 /** The key from the environment, or "" — lets `login` / `logout` say it is in use and leave it alone. */
@@ -143,4 +175,4 @@ function getConfigFile() {
   return CONFIG_FILE;
 }
 
-export { setEnv, getToken, getEnvApiKey, setToken, clearToken, getServiceUrl, getAuthUrl, getConfigFile };
+export { setEnv, getToken, getEnvApiKey, getForeignBaseUrl, setToken, clearToken, getServiceUrl, getAuthUrl, getConfigFile };
