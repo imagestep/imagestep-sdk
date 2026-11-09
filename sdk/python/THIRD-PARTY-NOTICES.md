@@ -58,7 +58,7 @@ libraries those pages stand on are served from this origin too:
 | Package                                                               | Version | Licence                                |
 | --------------------------------------------------------------------- | ------- | -------------------------------------- |
 | [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.91.0  | MIT — © 2019-present Beier(Bill) Luo   |
-| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 6.0.2   | MIT — © 2019-present Beier(Bill) Luo   |
+| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 7.0.1   | MIT — © 2019-present Beier(Bill) Luo   |
 | [zod](https://github.com/colinhacks/zod)                              | 4.6.7   | MIT — © 2025 Colin McDonnell           |
 | [date-fns](https://github.com/date-fns/date-fns)                      | 4.4.0   | MIT — © 2021 Sasha Koss and Lesha Koss |
 
