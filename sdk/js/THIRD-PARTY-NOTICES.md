@@ -38,9 +38,9 @@ dependency that never reaches the browser belongs in §4, not here.
 | ---------------------------------------------------------------- | ------- | ------------------------------------------------- |
 | [react](https://github.com/facebook/react)                       | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
 | [react-dom](https://github.com/facebook/react)                   | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
-| [next](https://github.com/vercel/next.js)                        | 16.4.3  | MIT — © 2025 Vercel, Inc.                         |
+| [next](https://github.com/vercel/next.js)                        | 16.4.4  | MIT — © 2025 Vercel, Inc.                         |
 | [radix-ui](https://github.com/radix-ui/primitives)               | 1.8.1   | MIT — © 2022 WorkOS                               |
-| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.66.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
+| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.67.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
 | [class-variance-authority](https://github.com/joe-bell/cva)      | 0.7.1   | Apache-2.0 — §5.2                                 |
 | [clsx](https://github.com/lukeed/clsx)                           | 2.1.1   | MIT — © Luke Edwards                              |
 | [tailwind-merge](https://github.com/dcastil/tailwind-merge)      | 3.7.0   | MIT — © 2021 Dany Castillo                        |

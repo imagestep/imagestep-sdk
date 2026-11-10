@@ -62,7 +62,7 @@
     "undici": "^8.12.3"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^5.0.5",
-    "vitest": "^5.0.5"
+    "@vitest/coverage-v8": "^5.1.0",
+    "vitest": "^5.1.0"
   }
 }
