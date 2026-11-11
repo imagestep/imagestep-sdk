@@ -227,6 +227,56 @@ class CollectionSummary(TypedDict, total=False):
     """
 
 
+class Deprecation(TypedDict, total=False):
+    """
+    A model on its way out, and what replaces it
+    """
+
+    announced: Required[str]
+    """
+    When the provider announced the retirement, an ISO date
+    """
+    changelog: Required[str]
+    """
+    The changelog entry: what changes, how the parameters map, how the price moves
+    """
+    retireAt: Required[str]
+    """
+    The day this service switches, 00:00 UTC, an ISO date: from then the id runs as `successor`, or is refused when there is none
+    """
+    shutdown: Required[str]
+    """
+    The day the provider stops serving it, an ISO date
+    """
+    successor: str
+    """
+    The model it runs as from `retireAt`, its parameters mapped; absent when it is refused from then
+    """
+
+
+class Details(TypedDict, total=False):
+    """
+    The model a retirement warning is about, and what replaces it
+    """
+
+    model: str
+    """
+    The model id as the request or the step names it
+    """
+    retireAt: str
+    """
+    The day this service switches, 00:00 UTC, an ISO date
+    """
+    successor: str
+    """
+    What it runs as from `retireAt`; absent when it is refused from then
+    """
+    successorCostPerItem: int
+    """
+    Credits per item on the successor at these parameters, mapped — what the same request costs from `retireAt`. On a dry run; a preset write or read leaves it out.
+    """
+
+
 class EndpointRequest(TypedDict, total=False):
     """
     Webhook endpoint create/update payload
@@ -1257,12 +1307,16 @@ class StepEstimate(TypedDict, total=False):
 
 class StepWarning(TypedDict, total=False):
     """
-    An advisory finding about a list of steps: legal, and probably not what was meant
+    An advisory finding about a list of steps, or about the model a job runs on: legal, and probably not what was meant
     """
 
     code: str
     """
     Machine-readable finding code from a closed set; the table is /docs/presets#warnings
+    """
+    details: Details
+    """
+    The finding as data, for a code that has some: `model_deprecated` and `model_replaced` say which model, when it switches, what it switches to and what an item costs there
     """
     message: str
     """
@@ -1270,7 +1324,7 @@ class StepWarning(TypedDict, total=False):
     """
     steps: list[int]
     """
-    The step indexes the finding is about, in order — the redundant one first
+    The step indexes the finding is about, in order — the redundant one first. Absent when the finding is about the job's own model rather than a step.
     """
 
 
@@ -2619,7 +2673,7 @@ class JobEstimate(TypedDict, total=False):
     """
     warnings: list[StepWarning]
     """
-    What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. Present when the request named a preset or sent inline steps.
+    What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. And what is happening to a model the job runs on: `model_deprecated` while it is being retired, `model_replaced` once it runs as its successor, each with `details` (the day it switches, the successor, its price an item at these parameters).
     """
 
 
@@ -2753,6 +2807,10 @@ class ModelDTO(TypedDict, total=False):
     created: int
     """
     Deprecated, and goes on 2027-01-12 with no replacement: it was never when the model changed, only a constant per provider. https://imagestep.dev/docs/changelog#2026-10-14-model-fields
+    """
+    deprecation: Deprecation
+    """
+    Present while the model is being retired (apps/service/doc/models.md): when it was announced, the day this service switches, the provider's own shutdown, what it runs as from then — absent when it is refused from then — and the changelog entry. Absent for a model that is not going. A retired model is no longer listed; naming it runs its `successor`.
     """
     description: str
     """
@@ -3617,7 +3675,7 @@ class PresetData(TypedDict, total=False):
     """
     warnings: list[StepWarning]
     """
-    What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. What could not run at all was refused instead, 400 invalid_param naming the step.
+    What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. A step whose model is being retired, or was, also says so on GET /api/v1/presets/{slug} (model_deprecated, model_replaced): a version keeps the id it was written with. What could not run at all was refused instead, 400 invalid_param naming the step.
     """
 
 

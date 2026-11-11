@@ -2870,6 +2870,58 @@ export interface components {
              */
             lastCreatedAt?: number;
         };
+        /** @description A model on its way out, and what replaces it */
+        Deprecation: {
+            /**
+             * @description When the provider announced the retirement, an ISO date
+             * @example 2026-11-10
+             */
+            announced: string;
+            /**
+             * @description The changelog entry: what changes, how the parameters map, how the price moves
+             * @example https://imagestep.dev/docs/changelog#2026-11-10-gpt-image-2
+             */
+            changelog: string;
+            /**
+             * @description The day this service switches, 00:00 UTC, an ISO date: from then the id runs as `successor`, or is refused when there is none
+             * @example 2027-02-09
+             */
+            retireAt: string;
+            /**
+             * @description The day the provider stops serving it, an ISO date
+             * @example 2027-02-10
+             */
+            shutdown: string;
+            /**
+             * @description The model it runs as from `retireAt`, its parameters mapped; absent when it is refused from then
+             * @example openai/gpt-image-2.6-flare
+             */
+            successor?: string;
+        };
+        /** @description The model a retirement warning is about, and what replaces it */
+        Details: {
+            /**
+             * @description The model id as the request or the step names it
+             * @example openai/gpt-image-2
+             */
+            model?: string;
+            /**
+             * @description The day this service switches, 00:00 UTC, an ISO date
+             * @example 2027-02-09
+             */
+            retireAt?: string;
+            /**
+             * @description What it runs as from `retireAt`; absent when it is refused from then
+             * @example openai/gpt-image-2.6-flare
+             */
+            successor?: string;
+            /**
+             * Format: int64
+             * @description Credits per item on the successor at these parameters, mapped — what the same request costs from `retireAt`. On a dry run; a preset write or read leaves it out.
+             * @example 8
+             */
+            successorCostPerItem?: number;
+        };
         /** @description Webhook endpoint create/update payload */
         EndpointRequest: {
             /**
@@ -3370,7 +3422,7 @@ export interface components {
              * @enum {string}
              */
             type?: "ai-generate" | "ai-edit" | "parse" | "process" | "render" | "chain";
-            /** @description What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. Present when the request named a preset or sent inline steps. */
+            /** @description What the steps say that is legal, will run, and is probably not what was meant — a shadowed output format, a step the one before it already did. Advisory: a warning never stops a submit, and an empty list is left out. What cannot run at all is a 400 invalid_param here instead, naming the step. And what is happening to a model the job runs on: `model_deprecated` while it is being retired, `model_replaced` once it runs as its successor, each with `details` (the day it switches, the successor, its price an item at these parameters). */
             warnings?: components["schemas"]["StepWarning"][];
         };
         /** @description A job settled: `job.completed` when no item failed, `job.failed` otherwise (a cancel included) */
@@ -3895,6 +3947,8 @@ export interface components {
              * @example 1711500000
              */
             created?: number;
+            /** @description Present while the model is being retired (apps/service/doc/models.md): when it was announced, the day this service switches, the provider's own shutdown, what it runs as from then — absent when it is refused from then — and the changelog entry. Absent for a model that is not going. A retired model is no longer listed; naming it runs its `successor`. */
+            deprecation?: components["schemas"]["Deprecation"];
             /**
              * @description Short description of the model's capabilities
              * @example Large multimodal model with fast responses.
@@ -4269,7 +4323,7 @@ export interface components {
             readonly versionCount?: number;
             /** @description Superseded versions, oldest first. Present in exports so an import replays the same history. GET /api/v1/presets leaves it off unless you ask for `?includeVersions=true` — a list row does not need every snapshot of every preset, and `versionCount` says whether there is any history to read. */
             versions?: components["schemas"]["PresetVersion"][];
-            /** @description What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. What could not run at all was refused instead, 400 invalid_param naming the step. */
+            /** @description What these steps say that is legal, will run, and is probably not what was meant (imagestep#416): a format a later step shadows, a step the one before it already did. Advisory — the preset was saved. Derived, never stored: a write answers with the findings about what it just saved, and POST /api/v1/jobs?dryRun=true recomputes them for any preset. A step whose model is being retired, or was, also says so on GET /api/v1/presets/{slug} (model_deprecated, model_replaced): a version keeps the id it was written with. What could not run at all was refused instead, 400 invalid_param naming the step. */
             readonly warnings?: components["schemas"]["StepWarning"][];
         };
         /** @description A preset step: either an L1 op from GET /api/v1/ops — {op, model?, prompt?, parameters?} — or a processing-registry step — {operation, params} — for what no op covers. Never both. */
@@ -4486,20 +4540,22 @@ export interface components {
              */
             op?: string;
         };
-        /** @description An advisory finding about a list of steps: legal, and probably not what was meant */
+        /** @description An advisory finding about a list of steps, or about the model a job runs on: legal, and probably not what was meant */
         StepWarning: {
             /**
              * @description Machine-readable finding code from a closed set; the table is /docs/presets#warnings
              * @example format_shadowed
              */
             code?: string;
+            /** @description The finding as data, for a code that has some: `model_deprecated` and `model_replaced` say which model, when it switches, what it switches to and what an item costs there */
+            details?: components["schemas"]["Details"];
             /**
              * @description The finding in one sentence, naming the steps by index
              * @example steps[1] writes jpeg and steps[3] writes webp; a process segment writes one image, in the format of its last format step, so steps[1]'s format is not written
              */
             message?: string;
             /**
-             * @description The step indexes the finding is about, in order — the redundant one first
+             * @description The step indexes the finding is about, in order — the redundant one first. Absent when the finding is about the job's own model rather than a step.
              * @example [
              *       1,
              *       3
@@ -7581,7 +7637,7 @@ export interface operations {
                 };
             };
             /**
-             * @description - `job_not_resumable` — `details.reason` is `NOT_LATEST_ATTEMPT` (resume the newest attempt of this `rootJobId` instead), `RESUME_LIMIT_EXCEEDED` (`details.job.maxResumes` reached) or `NOT_RETRYABLE` (every item left to retry failed with `invalid_param` or `unsupported_format`, which a resume meets again; `details.job.errorCode` is the first one's)
+             * @description - `job_not_resumable` — `details.reason` is `NOT_LATEST_ATTEMPT` (resume the newest attempt of this `rootJobId` instead), `RESUME_LIMIT_EXCEEDED` (`details.job.maxResumes` reached) or `NOT_RETRYABLE` (every item left to retry failed with `invalid_param` or `unsupported_format`, which a resume meets again; `details.job.errorCode` is the first one's) or `model_retired` (the job's model was retired since it ran, and its successor costs more than 1.5 times as much an item: `details.job` names the `model`, its `successor` and the `costPerItem` there — submit it again at that price, priced first with a dry run, if it is worth it)
              *     - `asset_count_exceeded` — the retry would pass the plan's stored-asset ceiling
              */
             422: {
