@@ -2922,6 +2922,19 @@ export interface components {
              */
             successorCostPerItem?: number;
         };
+        /** @description Present only when the item's product was not made from the RAW file's sensor data — the image you got is the camera's own embedded JPEG, not a conversion of the RAW */
+        Downgrade: {
+            /**
+             * @description Why the sensor data was not converted: `jpeg-xl`, a DNG whose sensor data is JPEG XL compressed (iPhone ProRAW since iOS 18)
+             * @example jpeg-xl
+             */
+            reason?: string;
+            /**
+             * @description What the product was made from instead: `embedded-preview`, the full-size JPEG the camera stored in the file
+             * @example embedded-preview
+             */
+            source?: string;
+        };
         /** @description Webhook endpoint create/update payload */
         EndpointRequest: {
             /**
@@ -3512,6 +3525,8 @@ export interface components {
             credits?: number;
             /** @description `chain` only: the image its next segment reads — the source, then each segment's product */
             currentAssetId?: string;
+            /** @description Present only when `resultAssetId` was not made from the RAW file's sensor data: a DNG whose sensor data is JPEG XL compressed (iPhone ProRAW since iOS 18) is made from the full-size JPEG the camera stored in it. `reason` is `jpeg-xl` and `source` `embedded-preview`, the only values today */
+            downgrade?: components["schemas"]["Downgrade"];
             /**
              * Format: int64
              * @description `finishedAt` − `startedAt`, in milliseconds

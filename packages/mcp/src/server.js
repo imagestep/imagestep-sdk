@@ -232,6 +232,12 @@ export const jobItemRefSchema = z.object({
   status: z.string().nullish(),
   sourceAssetId: z.string().nullish(),
   resultAssetId: z.string().nullish(),
+  downgrade: z
+    .object({ reason: z.string().nullish(), source: z.string().nullish() })
+    .nullish()
+    .describe(
+      "Only when resultAssetId was not made from the RAW file's sensor data: a JPEG XL DNG (iPhone ProRAW) is made from the camera's embedded JPEG — reason jpeg-xl, source embedded-preview."
+    ),
   error: z.string().optional(),
   errorCode: z.string().nullish(),
   retryable: z.boolean().nullish(),
@@ -422,6 +428,8 @@ export function jobRef(job, outputs, outputsTotal, outputsCursor) {
     status: i.status,
     sourceAssetId: i.sourceAssetId,
     resultAssetId: i.resultAssetId,
+    // Made from a JPEG XL DNG's embedded camera JPEG, not its sensor data (imagestep#990): what the agent tells the person.
+    downgrade: i.downgrade,
     error: i.error || undefined,
     errorCode: i.errorCode,
     retryable: i.retryable,

@@ -277,6 +277,21 @@ class Details(TypedDict, total=False):
     """
 
 
+class Downgrade(TypedDict, total=False):
+    """
+    Present only when the item's product was not made from the RAW file's sensor data — the image you got is the camera's own embedded JPEG, not a conversion of the RAW
+    """
+
+    reason: str
+    """
+    Why the sensor data was not converted: `jpeg-xl`, a DNG whose sensor data is JPEG XL compressed (iPhone ProRAW since iOS 18)
+    """
+    source: str
+    """
+    What the product was made from instead: `embedded-preview`, the full-size JPEG the camera stored in the file
+    """
+
+
 class EndpointRequest(TypedDict, total=False):
     """
     Webhook endpoint create/update payload
@@ -647,6 +662,10 @@ class JobItem(TypedDict, total=False):
     currentAssetId: str
     """
     `chain` only: the image its next segment reads — the source, then each segment's product
+    """
+    downgrade: Downgrade
+    """
+    Present only when `resultAssetId` was not made from the RAW file's sensor data: a DNG whose sensor data is JPEG XL compressed (iPhone ProRAW since iOS 18) is made from the full-size JPEG the camera stored in it. `reason` is `jpeg-xl` and `source` `embedded-preview`, the only values today
     """
     durationMs: int
     """

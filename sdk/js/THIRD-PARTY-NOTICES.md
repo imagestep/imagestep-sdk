@@ -40,7 +40,7 @@ dependency that never reaches the browser belongs in §4, not here.
 | [react-dom](https://github.com/facebook/react)                   | 19.3.1  | MIT — © Meta Platforms, Inc. and affiliates       |
 | [next](https://github.com/vercel/next.js)                        | 16.4.6  | MIT — © 2025 Vercel, Inc.                         |
 | [radix-ui](https://github.com/radix-ui/primitives)               | 1.8.1   | MIT — © 2022 WorkOS                               |
-| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.71.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
+| [lucide-react](https://github.com/lucide-icons/lucide)           | 1.72.0  | ISC — © 2026 Lucide Icons and Contributors — §5.1 |
 | [class-variance-authority](https://github.com/joe-bell/cva)      | 0.7.1   | Apache-2.0 — §5.2                                 |
 | [clsx](https://github.com/lukeed/clsx)                           | 2.1.1   | MIT — © Luke Edwards                              |
 | [tailwind-merge](https://github.com/dcastil/tailwind-merge)      | 3.7.0   | MIT — © 2021 Dany Castillo                        |
@@ -57,7 +57,7 @@ libraries those pages stand on are served from this origin too:
 
 | Package                                                               | Version | Licence                                |
 | --------------------------------------------------------------------- | ------- | -------------------------------------- |
-| [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.91.0  | MIT — © 2019-present Beier(Bill) Luo   |
+| [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.92.0  | MIT — © 2019-present Beier(Bill) Luo   |
 | [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 7.0.5   | MIT — © 2019-present Beier(Bill) Luo   |
 | [zod](https://github.com/colinhacks/zod)                              | 4.6.7   | MIT — © 2025 Colin McDonnell           |
 | [date-fns](https://github.com/date-fns/date-fns)                      | 4.4.0   | MIT — © 2021 Sasha Koss and Lesha Koss |
@@ -193,7 +193,9 @@ forgotten one are indistinguishable on disk.
   writes — which is why greping for the bare string `shiki` finds one file, a
   stylesheet — and the pair of hex values per token, taken from its bundled
   `github-light` / `github-dark` themes, output on the same reading as the line
-  above.
+  above. `next-mdx-remote`, `vfile` and `vfile-matter` are the same case: the
+  blog's loader (`@jun/site-kit/content`, `src/lib/blog.js`) reads and compiles
+  each post on the server, at build time, and the browser receives its HTML.
 - **`apps/public-worker`** — no runtime dependencies at all.
 - **Every `devDependency`** — vitest, eslint, prettier, wrangler, esbuild. Build
   tooling is not shipped.
