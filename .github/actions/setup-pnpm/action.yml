@@ -25,7 +25,9 @@ description: pnpm's own release binary, at the version root package.json's `pack
 #
 # Must run AFTER actions/checkout (this file and package.json come from the checkout) and AHEAD of
 # actions/setup-node, which shells out to pnpm to resolve the store path for its cache. `node` is on
-# the runner before setup-node runs, which is what makes reading package.json here work. The path is
+# a GitHub-hosted runner before setup-node runs, which is what makes reading package.json here work;
+# a self-hosted runner image has none, so each calling job puts a guarded setup-node ahead of this
+# action (`if: runner.environment != 'github-hosted'`). The path is
 # absolute so it does not depend on the directory the step runs in (a job may set another default
 # working directory).
 

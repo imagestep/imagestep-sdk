@@ -46,7 +46,7 @@ dependency that never reaches the browser belongs in §4, not here.
 | [tailwind-merge](https://github.com/dcastil/tailwind-merge)      | 3.7.0   | MIT — © 2021 Dany Castillo                        |
 | [sonner](https://github.com/emilkowalski/sonner)                 | 2.0.8   | MIT — © 2023 Emil Kowalski                        |
 | [next-themes](https://github.com/pacocoursey/next-themes)        | 0.4.6   | MIT — © 2022 Paco Coursey                         |
-| [react-virtuoso](https://github.com/petyosi/react-virtuoso)      | 4.18.21 | MIT — © 2020 Petyo Ivanov                         |
+| [react-virtuoso](https://github.com/petyosi/react-virtuoso)      | 4.18.22 | MIT — © 2020 Petyo Ivanov                         |
 | [@virtuoso.dev/masonry](https://github.com/petyosi/react-virtuoso/tree/master/packages/masonry) | 1.4.3   | MIT — © Petyo Ivanov                              |
 | [minisearch](https://github.com/lucaong/minisearch)              | 7.2.0   | MIT — © 2022 Luca Ongaro                          |
 | [fflate](https://github.com/101arrowz/fflate)                     | 0.8.3   | MIT — © 2026 Arjun Barrett                        |
@@ -58,7 +58,7 @@ libraries those pages stand on are served from this origin too:
 | Package                                                               | Version | Licence                                |
 | --------------------------------------------------------------------- | ------- | -------------------------------------- |
 | [react-hook-form](https://github.com/react-hook-form/react-hook-form) | 7.92.0  | MIT — © 2019-present Beier(Bill) Luo   |
-| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 7.0.5   | MIT — © 2019-present Beier(Bill) Luo   |
+| [@hookform/resolvers](https://github.com/react-hook-form/resolvers)   | 7.0.6   | MIT — © 2019-present Beier(Bill) Luo   |
 | [zod](https://github.com/colinhacks/zod)                              | 4.6.7   | MIT — © 2025 Colin McDonnell           |
 | [date-fns](https://github.com/date-fns/date-fns)                      | 4.4.0   | MIT — © 2021 Sasha Koss and Lesha Koss |
 
