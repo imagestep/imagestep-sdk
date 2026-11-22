@@ -268,7 +268,7 @@ declare class Ops {
       fit?: "cover" | "contain" | "fill" | "inside" | "outside";
       /** Which part `cover` keeps, or where `contain` places the image: a compass point, or `attention` / `entropy`. */
       gravity?: string;
-      /** The letterbox colour for `fit: "contain"` only. Default: transparent, or white when the result is a JPEG. */
+      /** The letterbox colour for `fit: "contain"` only. Default: transparent, or white when the result is a JPEG; with a `flatten` anywhere in the same pipeline, the flatten's colour. */
       background?: string;
       /** Default true: never upscale. A `cover` / `fill` box bigger than the image shrinks, shape kept, to the biggest one it covers (imagestep#463). */
       withoutEnlargement?: boolean;
