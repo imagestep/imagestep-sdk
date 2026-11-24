@@ -10,8 +10,8 @@
   "scripts": {
     "check": "pnpm lint && pnpm format:check",
     "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write \"**/*.{js,jsx,mjs,cjs}\"",
-    "format:check": "prettier --check \"**/*.{js,jsx,mjs,cjs}\"",
+    "format": "prettier --write \"**/*.{js,jsx,mjs,cjs,ts,tsx}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,mjs,cjs,ts,tsx}\"",
     "test": "vitest run",
     "test:python": "cd sdk/python && uv run --frozen --extra dev pytest -q"
   },
